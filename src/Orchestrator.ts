@@ -127,9 +127,7 @@ const invokeAgent = (
           errorDetail = resultText;
         }
         if (!errorDetail.trim()) {
-          const lines = execResult.stdout
-            .split("\n")
-            .filter((l) => l.trim());
+          const lines = execResult.stdout.split("\n").filter((l) => l.trim());
           errorDetail = lines.slice(-20).join("\n");
         }
         return yield* Effect.fail(
@@ -254,7 +252,7 @@ export const orchestrate = (
     let iterationPreservedPath: string | undefined;
 
     // Helper: check abort signal and bail via defect so run() can
-    // re-throw the signal's reason verbatim (no Sandcastle wrapping).
+    // re-throw the signal's reason verbatim (no Narukami Shrine wrapping).
     const checkAbort = (): Effect.Effect<void> =>
       options.signal?.aborted ? Effect.die(options.signal.reason) : Effect.void;
 

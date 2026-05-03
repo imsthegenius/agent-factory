@@ -33,7 +33,17 @@ const execOk = (
       ? Effect.fail(
           new ExecError({
             command,
-            message: `Command failed (exit ${result.exitCode}): ${command}\n${result.stderr}`,
+            message: [
+              `Command failed (exit ${result.exitCode}): ${command}`,
+              result.stdout.trim()
+                ? `stdout:\n${result.stdout.trimEnd()}`
+                : undefined,
+              result.stderr.trim()
+                ? `stderr:\n${result.stderr.trimEnd()}`
+                : undefined,
+            ]
+              .filter((line): line is string => line !== undefined)
+              .join("\n"),
           }),
         )
       : Effect.succeed(result),

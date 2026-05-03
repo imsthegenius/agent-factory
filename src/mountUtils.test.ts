@@ -27,31 +27,31 @@ vi.mock("node:os", async (importOriginal) => {
 
 describe("defaultImageName", () => {
   it("derives image name from POSIX repo directory", () => {
-    expect(defaultImageName("/home/user/my-repo")).toBe("sandcastle:my-repo");
+    expect(defaultImageName("/home/user/my-repo")).toBe("narukami:my-repo");
   });
 
   it("lowercases and sanitizes the directory name", () => {
-    expect(defaultImageName("/home/user/My Repo!")).toBe("sandcastle:my-repo-");
+    expect(defaultImageName("/home/user/My Repo!")).toBe("narukami:my-repo-");
   });
 
   it("handles trailing slashes", () => {
-    expect(defaultImageName("/home/user/repo/")).toBe("sandcastle:repo");
+    expect(defaultImageName("/home/user/repo/")).toBe("narukami:repo");
   });
 
   it("falls back to 'local' for empty path", () => {
-    expect(defaultImageName("")).toBe("sandcastle:local");
+    expect(defaultImageName("")).toBe("narukami:local");
   });
 
   it("handles Windows paths with backslashes", () => {
-    expect(defaultImageName("C:\\Users\\project")).toBe("sandcastle:project");
+    expect(defaultImageName("C:\\Users\\project")).toBe("narukami:project");
   });
 
   it("handles Windows paths with trailing backslash", () => {
-    expect(defaultImageName("C:\\Users\\project\\")).toBe("sandcastle:project");
+    expect(defaultImageName("C:\\Users\\project\\")).toBe("narukami:project");
   });
 
   it("handles mixed separators", () => {
-    expect(defaultImageName("C:\\Users/project")).toBe("sandcastle:project");
+    expect(defaultImageName("C:\\Users/project")).toBe("narukami:project");
   });
 });
 
@@ -403,8 +403,8 @@ describe("patchGitMountsForWindows", () => {
       expect(result).toEqual(mounts);
     });
 
-    it("remaps parent .git dir and adds overlay mount for Sandcastle-created worktree", async () => {
-      // Scenario B: Sandcastle created a worktree. resolveGitMounts returned
+    it("remaps parent .git dir and adds overlay mount for Narukami Shrine-created worktree", async () => {
+      // Scenario B: Narukami Shrine created a worktree. resolveGitMounts returned
       // one mount for the parent .git directory. The worktree's .git file
       // points into it.
       const mounts = [

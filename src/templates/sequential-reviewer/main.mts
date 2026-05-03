@@ -1,10 +1,10 @@
 // Sequential Reviewer — implement-then-review loop
 //
 // This template drives a two-phase workflow per issue:
-//   Phase 1 (Implement): A sonnet agent picks an open GitHub issue, works on it
+//   Phase 1 (Implement): An agent picks an open issue, works on it
 //                        on a dedicated branch, commits the changes, and signals
 //                        completion.
-//   Phase 2 (Review):    A second sonnet agent reviews the branch diff and either
+//   Phase 2 (Review):    A second agent reviews the branch diff and either
 //                        approves it or makes corrections directly on the branch.
 //
 // The outer loop repeats up to MAX_ITERATIONS times, processing one issue per
@@ -12,12 +12,12 @@
 // gate) and the parallel-planner (concurrent execution with a planning phase).
 //
 // Usage:
-//   npx tsx .sandcastle/main.mts
+//   npx tsx .narukami/main.mts
 // Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
 
-import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import * as narukami from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -33,10 +33,9 @@ const hooks = {
   sandbox: { onSandboxReady: [{ command: "npm install" }] },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
+// Keep this empty by default. Copying host node_modules into a Linux sandbox
+// can break native packages such as esbuild when the host is macOS/Windows.
+const copyToWorktree: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -48,22 +47,22 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 1: Implement
   //
-  // A sonnet agent picks the next open GitHub issue, creates a branch, writes
+  // An agent picks the next open issue, creates a branch, writes
   // the implementation (using RGR: Red → Green → Repeat → Refactor), and
   // commits the result.
   //
   // The agent signals completion via <promise>COMPLETE</promise> when done.
   // The result contains the branch name the agent worked on.
   // -------------------------------------------------------------------------
-  const implement = await sandcastle.run({
+  const implement = await narukami.run({
     hooks,
     copyToWorktree,
     sandbox: docker(),
     branchStrategy: { type: "merge-to-head" },
     name: "implementer",
     maxIterations: 100,
-    agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-    promptFile: "./.sandcastle/implement-prompt.md",
+    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    promptFile: "./.narukami/implement-prompt.md",
   });
 
   // Extract the branch the agent worked on so the reviewer can target it.
@@ -80,19 +79,19 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 2: Review
   //
-  // A second sonnet agent reviews the diff of the branch produced by Phase 1.
+  // A second agent reviews the diff of the branch produced by Phase 1.
   // It uses the {{BRANCH}} prompt argument to inspect the right branch, and
   // either approves or makes corrections directly on the branch.
   // -------------------------------------------------------------------------
-  await sandcastle.run({
+  await narukami.run({
     hooks,
     copyToWorktree,
     sandbox: docker(),
     branchStrategy: { type: "branch", branch },
     name: "reviewer",
     maxIterations: 1,
-    agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-    promptFile: "./.sandcastle/review-prompt.md",
+    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    promptFile: "./.narukami/review-prompt.md",
     // Prompt arguments substitute {{BRANCH}} in review-prompt.md before the
     // agent sees the prompt.
     promptArgs: {

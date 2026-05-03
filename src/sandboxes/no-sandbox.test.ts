@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { noSandbox } from "./no-sandbox.js";
 
@@ -63,7 +64,7 @@ describe("noSandbox", () => {
       });
 
       const result = await handle.exec("pwd", { cwd: "/tmp" });
-      expect(result.stdout.trim()).toBe("/tmp");
+      expect(realpathSync(result.stdout.trim())).toBe(realpathSync("/tmp"));
     });
 
     it("exec ignores sudo option (no-op)", async () => {
@@ -83,11 +84,11 @@ describe("noSandbox", () => {
       const provider = noSandbox();
       const handle = await provider.create({
         worktreePath: process.cwd(),
-        env: { MY_TEST_VAR: "sandcastle_test_value" },
+        env: { MY_TEST_VAR: "narukami_test_value" },
       });
 
       const result = await handle.exec("echo $MY_TEST_VAR");
-      expect(result.stdout.trim()).toBe("sandcastle_test_value");
+      expect(result.stdout.trim()).toBe("narukami_test_value");
     });
 
     it("interactiveExec spawns process and returns exit code", async () => {

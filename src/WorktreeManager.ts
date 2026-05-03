@@ -54,15 +54,15 @@ const execGit = (
 
 /**
  * Generates a temporary branch name.
- * When name is provided: `sandcastle/<sanitized-name>/<YYYYMMDD-HHMMSS>`.
- * Otherwise: `sandcastle/<YYYYMMDD-HHMMSS>`.
+ * When name is provided: `narukami/<sanitized-name>/<YYYYMMDD-HHMMSS>`.
+ * Otherwise: `narukami/<YYYYMMDD-HHMMSS>`.
  */
 export const generateTempBranchName = (name?: string): string => {
   const ts = formatTimestamp(new Date());
   if (name) {
-    return `sandcastle/${sanitizeName(name)}/${ts}`;
+    return `narukami/${sanitizeName(name)}/${ts}`;
   }
-  return `sandcastle/${ts}`;
+  return `narukami/${ts}`;
 };
 
 /** Returns the name of the currently checked-out branch in the given repo directory. */
@@ -115,10 +115,10 @@ const listWorktrees = (
   );
 
 /**
- * Creates a git worktree at `.sandcastle/worktrees/<name>/`.
+ * Creates a git worktree at `.narukami/worktrees/<name>/`.
  *
  * - If `branch` is specified, checks out that branch.
- * - If not, creates a temporary `sandcastle/<timestamp>` branch.
+ * - If not, creates a temporary `narukami/<timestamp>` branch.
  *
  * When `branch` collides with an existing managed worktree:
  * - Clean → reuses the existing worktree.
@@ -140,10 +140,13 @@ export const create = (
 > =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
-    const worktreesDir = join(repoDir, ".sandcastle", "worktrees");
+    const worktreesDir = join(repoDir, ".narukami", "worktrees");
     yield* fs
       .makeDirectory(worktreesDir, { recursive: true })
       .pipe(Effect.mapError((e) => new WorktreeError({ message: e.message })));
+    const canonicalWorktreesDir = yield* fs
+      .realPath(worktreesDir)
+      .pipe(Effect.catchAll(() => Effect.succeed(worktreesDir)));
 
     let branch: string;
     let worktreeName: string;
@@ -155,15 +158,16 @@ export const create = (
       const timestamp = formatTimestamp(new Date());
       if (opts?.name) {
         const sanitized = sanitizeName(opts.name);
-        branch = `sandcastle/${sanitized}/${timestamp}`;
-        worktreeName = `sandcastle-${sanitized}-${timestamp}`;
+        branch = `narukami/${sanitized}/${timestamp}`;
+        worktreeName = `narukami-${sanitized}-${timestamp}`;
       } else {
-        branch = `sandcastle/${timestamp}`;
-        worktreeName = `sandcastle-${timestamp}`;
+        branch = `narukami/${timestamp}`;
+        worktreeName = `narukami-${timestamp}`;
       }
     }
 
     const worktreePath = join(worktreesDir, worktreeName);
+    const canonicalWorktreePath = join(canonicalWorktreesDir, worktreeName);
 
     if (opts?.branch) {
       // Proactively detect collision before git produces a confusing error.
@@ -172,22 +176,26 @@ export const create = (
       const existing = yield* listWorktrees(repoDir);
       const collision =
         existing.find((wt) => wt.branch === branch) ??
-        existing.find((wt) => wt.path === worktreePath);
+        existing.find(
+          (wt) => wt.path === worktreePath || wt.path === canonicalWorktreePath,
+        );
       if (collision) {
-        // Only reuse worktrees managed by sandcastle (under .sandcastle/worktrees/)
-        const isManagedWorktree = collision.path.startsWith(worktreesDir);
+        // Only reuse worktrees managed by narukami (under .narukami/worktrees/)
+        const isManagedWorktree =
+          collision.path.startsWith(worktreesDir) ||
+          collision.path.startsWith(canonicalWorktreesDir);
         if (isManagedWorktree) {
           const dirty = yield* hasUncommittedChanges(collision.path);
           if (dirty) {
             console.warn(
-              `Reusing worktree at ${collision.path} (branch '${branch}') — worktree has uncommitted changes`,
+              `Reusing worktree at ${worktreePath} (branch '${branch}') — worktree has uncommitted changes`,
             );
           } else {
             console.log(
-              `Reusing existing worktree at ${collision.path} (branch '${branch}')`,
+              `Reusing existing worktree at ${worktreePath} (branch '${branch}')`,
             );
           }
-          return { path: collision.path, branch };
+          return { path: worktreePath, branch };
         }
         // Branch is checked out in the main working tree or external worktree
         yield* Effect.fail(
@@ -279,13 +287,13 @@ export const hasUncommittedChanges = (
 /**
  * Removes a worktree and its git metadata.
  *
- * The `worktreePath` must be a path inside `.sandcastle/worktrees/` so that
+ * The `worktreePath` must be a path inside `.narukami/worktrees/` so that
  * the main repository directory can be derived from it.
  */
 export const remove = (
   worktreePath: string,
 ): Effect.Effect<void, WorktreeError> => {
-  // Derive the main repo dir: worktreePath = <repoDir>/.sandcastle/worktrees/<name>
+  // Derive the main repo dir: worktreePath = <repoDir>/.narukami/worktrees/<name>
   const repoDir = join(worktreePath, "..", "..", "..");
   return execGit(["worktree", "remove", "--force", worktreePath], repoDir).pipe(
     Effect.asVoid,
@@ -294,7 +302,7 @@ export const remove = (
 
 /**
  * Prunes stale git worktree metadata and removes orphaned directories under
- * `.sandcastle/worktrees/`.
+ * `.narukami/worktrees/`.
  */
 export const pruneStale = (
   repoDir: string,
@@ -309,7 +317,7 @@ export const pruneStale = (
     // Let git clean up metadata for worktrees whose directories are gone
     yield* execGit(["worktree", "prune"], repoDir);
 
-    const worktreesDir = join(repoDir, ".sandcastle", "worktrees");
+    const worktreesDir = join(repoDir, ".narukami", "worktrees");
 
     // Read directory entries — return null if directory doesn't exist
     const entries: string[] | null = yield* fs.readDirectory(worktreesDir).pipe(
@@ -325,7 +333,7 @@ export const pruneStale = (
     if (entries === null) return;
 
     // `git worktree list` canonicalizes paths via realpath. If repoDir or
-    // .sandcastle is a symlink, joining the un-canonicalized prefix produces
+    // .narukami is a symlink, joining the un-canonicalized prefix produces
     // strings that never match git's output, and every active worktree looks
     // orphaned. Resolve the prefix once so the Set lookup below works.
     const realWorktreesDir = yield* fs
@@ -344,7 +352,7 @@ export const pruneStale = (
         .map((line) => line.slice("worktree ".length).trim()),
     );
 
-    // Remove any directory under .sandcastle/worktrees/ that is not an active worktree
+    // Remove any directory under .narukami/worktrees/ that is not an active worktree
     for (const entry of entries) {
       const entryPath = join(realWorktreesDir, entry);
       const isDir = yield* fs.stat(entryPath).pipe(

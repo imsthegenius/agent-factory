@@ -101,6 +101,66 @@ describe("syncOut", () => {
     }
   });
 
+  it("syncs additional commits from a reusable isolated sandbox using sandbox-side base refs", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "host-"));
+    await initRepo(hostDir);
+    await commitFile(hostDir, "initial.txt", "initial", "initial commit");
+
+    const provider = testIsolated();
+    const handle = await provider.create({ env: {} });
+    try {
+      await Effect.runPromise(syncIn(hostDir, handle));
+
+      let lastSyncedSandboxHead: string | undefined;
+      const rememberSyncedHead = (head: string) => {
+        lastSyncedSandboxHead = head;
+      };
+
+      const wp = handle.worktreePath;
+      await handle.exec('echo "first" > first.txt', { cwd: wp });
+      await handle.exec("git add first.txt", { cwd: wp });
+      await handle.exec('git commit -m "add first"', { cwd: wp });
+
+      await Effect.runPromise(
+        syncOut(hostDir, handle, { onSyncedHead: rememberSyncedHead }),
+      );
+
+      const firstSandboxHead = lastSyncedSandboxHead;
+      expect(firstSandboxHead).toBeDefined();
+
+      const { stdout: hostHeadAfterFirst } = await execAsync(
+        "git rev-parse HEAD",
+        { cwd: hostDir },
+      );
+      expect(hostHeadAfterFirst.trim()).not.toBe(firstSandboxHead);
+
+      await handle.exec('echo "second" > second.txt', { cwd: wp });
+      await handle.exec("git add second.txt", { cwd: wp });
+      await handle.exec('git commit -m "add second"', { cwd: wp });
+
+      await Effect.runPromise(
+        syncOut(hostDir, handle, {
+          baseRef: lastSyncedSandboxHead,
+          onSyncedHead: rememberSyncedHead,
+        }),
+      );
+
+      const log = await getLog(hostDir);
+      expect(log).toHaveLength(3);
+      expect(log[0]).toContain("add second");
+      expect(log[1]).toContain("add first");
+
+      expect(await readFile(join(hostDir, "first.txt"), "utf-8")).toBe(
+        "first\n",
+      );
+      expect(await readFile(join(hostDir, "second.txt"), "utf-8")).toBe(
+        "second\n",
+      );
+    } finally {
+      await handle.close();
+    }
+  });
+
   it("is a no-op when sandbox has no new commits", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "host-"));
     await initRepo(hostDir);
@@ -312,7 +372,7 @@ describe("syncOut", () => {
     }
   });
 
-  it("successful sync-out leaves no patch artifacts in .sandcastle/patches", async () => {
+  it("successful sync-out leaves no patch artifacts in .narukami/patches", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "host-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "initial.txt", "initial", "initial commit");
@@ -339,7 +399,7 @@ describe("syncOut", () => {
       expect(log[0]).toContain("add new file");
 
       // Verify no patch artifacts remain
-      const patchesDir = join(hostDir, ".sandcastle", "patches");
+      const patchesDir = join(hostDir, ".narukami", "patches");
       expect(existsSync(patchesDir)).toBe(false);
     } finally {
       await handle.close();
@@ -380,7 +440,7 @@ describe("syncOut", () => {
       }
 
       // Verify patch artifacts are preserved
-      const patchesDir = join(hostDir, ".sandcastle", "patches");
+      const patchesDir = join(hostDir, ".narukami", "patches");
       expect(existsSync(patchesDir)).toBe(true);
 
       const timestampDirs = await readdir(patchesDir);
@@ -433,7 +493,7 @@ describe("syncOut", () => {
       }
 
       // Verify patch artifacts are preserved
-      const patchesDir = join(hostDir, ".sandcastle", "patches");
+      const patchesDir = join(hostDir, ".narukami", "patches");
       expect(existsSync(patchesDir)).toBe(true);
 
       const timestampDirs = await readdir(patchesDir);

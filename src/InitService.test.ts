@@ -10,8 +10,8 @@ import {
   listAgents,
   getAgent,
   listTemplates,
-  listBacklogManagers,
-  getBacklogManager,
+  listIssueProviders,
+  getIssueProvider,
   listSandboxProviders,
   getSandboxProvider,
 } from "./InitService.js";
@@ -27,8 +27,8 @@ const codexAgent = getAgent("codex")!;
 const opencodeAgent = getAgent("opencode")!;
 
 const defaultOptions: ScaffoldOptions = {
-  agent: claudeCodeAgent,
-  model: "claude-opus-4-6",
+  agent: codexAgent,
+  model: "gpt-5.5",
 };
 
 const runScaffold = (repoDir: string, options?: Partial<ScaffoldOptions>) =>
@@ -87,7 +87,8 @@ describe("Agent registry", () => {
     const agent = getAgent("codex");
     expect(agent).toBeDefined();
     expect(agent!.name).toBe("codex");
-    expect(agent!.defaultModel).toBe("gpt-5.4-mini");
+    expect(agent!.defaultModel).toBe("gpt-5.5");
+    expect(agent!.defaultFactoryOptions).toBe('{ effort: "low" }');
     expect(agent!.factoryImport).toBe("codex");
     expect(agent!.dockerfileTemplate).toContain("FROM");
     expect(agent!.dockerfileTemplate).toContain("@openai/codex");
@@ -119,13 +120,14 @@ describe("InitService scaffold", () => {
     await runScaffold(dir);
 
     const dockerfile = await readFile(
-      join(dir, ".sandcastle", "Dockerfile"),
+      join(dir, ".narukami", "Dockerfile"),
       "utf-8",
     );
-    // Template has {{BACKLOG_MANAGER_TOOLS}} replaced — should contain GitHub CLI (default backlog manager)
+    // Template has {{ISSUE_PROVIDER_TOOLS}} replaced — default is Codex + Linear.
     expect(dockerfile).toContain("FROM node:22-bookworm");
-    expect(dockerfile).toContain("GitHub CLI");
-    expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+    expect(dockerfile).toContain("@openai/codex");
+    expect(dockerfile).toContain("Linear MCP tool");
+    expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
   });
 
   // --- Dynamic .env.example generation ---
@@ -134,19 +136,19 @@ describe("InitService scaffold", () => {
     {
       agent: claudeCodeAgent,
       expectedKey: "ANTHROPIC_API_KEY=",
-      unexpectedKey: "OPENAI_KEY=",
-      expectIssue191Link: true,
+      unexpectedKey: "OPENAI_API_KEY=",
+      expectIssue191Link: false,
     },
     {
       agent: piAgent,
       expectedKey: "ANTHROPIC_API_KEY=",
-      unexpectedKey: "OPENAI_KEY=",
+      unexpectedKey: "OPENAI_API_KEY=",
       expectIssue191Link: false,
     },
     {
       agent: codexAgent,
-      expectedKey: "OPENAI_KEY=",
-      unexpectedKey: "ANTHROPIC_API_KEY=",
+      expectedKey: "ChatGPT subscription auth",
+      unexpectedKey: "OPENAI_API_KEY=",
       expectIssue191Link: false,
     },
     {
@@ -162,7 +164,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { agent, model: agent.defaultModel });
 
       const envExample = await readFile(
-        join(dir, ".sandcastle", ".env.example"),
+        join(dir, ".narukami", ".env.example"),
         "utf-8",
       );
       expect(envExample).toContain(expectedKey);
@@ -175,27 +177,27 @@ describe("InitService scaffold", () => {
     },
   );
 
-  it("generates .env.example with GH_TOKEN when backlog manager is github-issues", async () => {
+  it("generates .env.example with GH_TOKEN when issue provider is github-issues", async () => {
     const dir = await makeDir();
     await runScaffold(dir, {
-      backlogManager: getBacklogManager("github-issues"),
+      issueProvider: getIssueProvider("github-issues"),
     });
 
     const envExample = await readFile(
-      join(dir, ".sandcastle", ".env.example"),
+      join(dir, ".narukami", ".env.example"),
       "utf-8",
     );
     expect(envExample).toContain("GH_TOKEN=");
   });
 
-  it("generates .env.example without GH_TOKEN when backlog manager is beads", async () => {
+  it("generates .env.example without GH_TOKEN when issue provider is beads", async () => {
     const dir = await makeDir();
     await runScaffold(dir, {
-      backlogManager: getBacklogManager("beads"),
+      issueProvider: getIssueProvider("beads"),
     });
 
     const envExample = await readFile(
-      join(dir, ".sandcastle", ".env.example"),
+      join(dir, ".narukami", ".env.example"),
       "utf-8",
     );
     expect(envExample).not.toContain("GH_TOKEN=");
@@ -207,17 +209,17 @@ describe("InitService scaffold", () => {
 
     const { access } = await import("node:fs/promises");
     await expect(
-      access(join(dir, ".sandcastle", "config.json")),
+      access(join(dir, ".narukami", "config.json")),
     ).rejects.toThrow();
   });
 
-  it("errors if .sandcastle/ already exists", async () => {
+  it("errors if .narukami/ already exists", async () => {
     const dir = await makeDir();
     const { mkdir } = await import("node:fs/promises");
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
 
     await expect(runScaffold(dir)).rejects.toThrow(
-      ".sandcastle/ directory already exists",
+      ".narukami/ directory already exists",
     );
   });
 
@@ -226,7 +228,7 @@ describe("InitService scaffold", () => {
     await runScaffold(dir);
 
     const gitignore = await readFile(
-      join(dir, ".sandcastle", ".gitignore"),
+      join(dir, ".narukami", ".gitignore"),
       "utf-8",
     );
     expect(gitignore).toContain(".env");
@@ -240,18 +242,18 @@ describe("InitService scaffold", () => {
     await runScaffold(dir);
 
     const dockerfile = await readFile(
-      join(dir, ".sandcastle", "Dockerfile"),
+      join(dir, ".narukami", "Dockerfile"),
       "utf-8",
     );
     expect(dockerfile).toContain(SANDBOX_REPO_DIR);
   });
 
-  it("claude-code Dockerfile template does not install pnpm or enable corepack", async () => {
+  it("Dockerfile does not install pnpm or enable corepack for an npm repo", async () => {
     const dir = await makeDir();
     await runScaffold(dir);
 
     const dockerfile = await readFile(
-      join(dir, ".sandcastle", "Dockerfile"),
+      join(dir, ".narukami", "Dockerfile"),
       "utf-8",
     );
     expect(dockerfile).not.toContain("corepack");
@@ -262,10 +264,7 @@ describe("InitService scaffold", () => {
     const dir = await makeDir();
     await runScaffold(dir);
 
-    const prompt = await readFile(
-      join(dir, ".sandcastle", "prompt.md"),
-      "utf-8",
-    );
+    const prompt = await readFile(join(dir, ".narukami", "prompt.md"), "utf-8");
     expect(prompt).toContain("# ");
     expect(prompt).toContain("!`");
     expect(prompt).toContain("<promise>COMPLETE</promise>");
@@ -275,7 +274,7 @@ describe("InitService scaffold", () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "blank" });
 
-    const configDir = join(dir, ".sandcastle");
+    const configDir = join(dir, ".narukami");
     const prompt = await readFile(join(configDir, "prompt.md"), "utf-8");
     expect(prompt).toContain("!`");
     expect(prompt).toContain("<promise>COMPLETE</promise>");
@@ -284,25 +283,19 @@ describe("InitService scaffold", () => {
     await expect(access(join(configDir, "main.mts"))).resolves.toBeUndefined();
   });
 
-  it("blank template main.mts imports from @ai-hero/sandcastle", async () => {
+  it("blank template main.mts imports from @yae-tools/narukami-shrine", async () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "blank" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
-    expect(mainTs).toContain('"@ai-hero/sandcastle"');
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
+    expect(mainTs).toContain('"@yae-tools/narukami-shrine"');
   });
 
   it("blank template main.mts calls run()", async () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "blank" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
     expect(mainTs).toContain("run(");
   });
 
@@ -313,11 +306,11 @@ describe("InitService scaffold", () => {
     await runScaffold(dir2, { templateName: "blank" });
 
     const prompt1 = await readFile(
-      join(dir1, ".sandcastle", "prompt.md"),
+      join(dir1, ".narukami", "prompt.md"),
       "utf-8",
     );
     const prompt2 = await readFile(
-      join(dir2, ".sandcastle", "prompt.md"),
+      join(dir2, ".narukami", "prompt.md"),
       "utf-8",
     );
     expect(prompt1).toBe(prompt2);
@@ -327,12 +320,12 @@ describe("InitService scaffold", () => {
 
   it("scaffolds main.mts with the specified model", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { model: "claude-sonnet-4-6" });
+    await runScaffold(dir, {
+      agent: claudeCodeAgent,
+      model: "claude-sonnet-4-6",
+    });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
     expect(mainTs).toContain('claudeCode("claude-sonnet-4-6")');
     // Should not contain the template's original model
     expect(mainTs).not.toContain('claudeCode("claude-opus-4-6")');
@@ -342,11 +335,11 @@ describe("InitService scaffold", () => {
     const dir = await makeDir();
     await runScaffold(dir);
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
+    expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
+    expect(mainTs).toContain(
+      'docker({ mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }] })',
     );
-    expect(mainTs).toContain('claudeCode("claude-opus-4-6")');
   });
 
   // --- Template-specific tests ---
@@ -355,39 +348,34 @@ describe("InitService scaffold", () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "simple-loop" });
 
-    const configDir = join(dir, ".sandcastle");
+    const configDir = join(dir, ".narukami");
     const { access } = await import("node:fs/promises");
 
     await expect(access(join(configDir, "main.mts"))).resolves.toBeUndefined();
     await expect(access(join(configDir, "prompt.md"))).resolves.toBeUndefined();
   });
 
-  it("simple-loop main.mts imports from @ai-hero/sandcastle", async () => {
+  it("simple-loop main.mts imports from @yae-tools/narukami-shrine", async () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "simple-loop" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
-    expect(mainTs).toContain('"@ai-hero/sandcastle"');
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
+    expect(mainTs).toContain('"@yae-tools/narukami-shrine"');
   });
 
-  it("simple-loop main.mts contains sandcastle.run() with expected options", async () => {
+  it("simple-loop main.mts contains narukami.run() with expected options", async () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "simple-loop" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
     expect(mainTs).toContain("run(");
     expect(mainTs).toContain("maxIterations");
     expect(mainTs).toContain("3");
-    // When scaffolded with default model, simple-loop uses claude-opus-4-6
-    // (rewritten from template's claude-sonnet-4-6)
+    // When scaffolded with the default agent, simple-loop uses Codex.
+    expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
     expect(mainTs).toContain("promptFile");
     expect(mainTs).toContain("npm install");
+    expect(mainTs).toContain("timeoutMs: 600000");
     expect(mainTs).toContain("onSandboxReady");
   });
 
@@ -395,13 +383,108 @@ describe("InitService scaffold", () => {
     const dir = await makeDir();
     await runScaffold(dir, { templateName: "simple-loop" });
 
-    const prompt = await readFile(
-      join(dir, ".sandcastle", "prompt.md"),
-      "utf-8",
-    );
-    expect(prompt).toContain("!`gh issue");
+    const prompt = await readFile(join(dir, ".narukami", "prompt.md"), "utf-8");
+    expect(prompt).toContain("Linear MCP tool");
+    expect(prompt).not.toContain("!`Use the Linear MCP tool");
     expect(prompt).toContain("!`git log");
     expect(prompt).toContain("<promise>COMPLETE</promise>");
+  });
+
+  describe("package manager detection", () => {
+    it("keeps npm install as the default sandbox hook", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "simple-loop" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+
+      expect(mainTs).toContain(
+        'onSandboxReady: [{ command: "npm install", timeoutMs: 600000 }]',
+      );
+      expect(dockerfile).not.toContain("{{PACKAGE_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("pnpm");
+    });
+
+    it("uses non-interactive pnpm install and installs the pinned pnpm in Dockerfile", async () => {
+      const dir = await makeDir();
+      await writeFile(
+        join(dir, "package.json"),
+        JSON.stringify({
+          name: "pnpm-repo",
+          packageManager: "pnpm@10.32.1",
+        }),
+      );
+      await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+
+      await runScaffold(dir, { templateName: "simple-loop" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+
+      expect(mainTs).toContain(
+        'onSandboxReady: [{ command: "pnpm install --config.confirmModulesPurge=false", timeoutMs: 600000 }]',
+      );
+      expect(mainTs).toContain("copyToWorktree: []");
+      expect(mainTs).not.toContain('copyToWorktree: ["node_modules"]');
+      expect(dockerfile).toContain("npm install -g pnpm@10.32.1");
+      expect(dockerfile).not.toContain("{{PACKAGE_MANAGER_TOOLS}}");
+    });
+
+    it("keeps Codex subscription auth, Linear MCP guidance, and pnpm setup together", async () => {
+      const dir = await makeDir();
+      await writeFile(
+        join(dir, "package.json"),
+        JSON.stringify({
+          name: "codex-linear-pnpm-repo",
+          packageManager: "pnpm@10.32.1",
+        }),
+      );
+      await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+
+      await runScaffold(dir, { templateName: "simple-loop" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      const prompt = await readFile(
+        join(dir, ".narukami", "prompt.md"),
+        "utf-8",
+      );
+      const envExample = await readFile(
+        join(dir, ".narukami", ".env.example"),
+        "utf-8",
+      );
+
+      expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
+      expect(mainTs).toContain(
+        'docker({ mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }] })',
+      );
+      expect(mainTs).toContain(
+        'onSandboxReady: [{ command: "pnpm install --config.confirmModulesPurge=false", timeoutMs: 600000 }]',
+      );
+      expect(mainTs).toContain("copyToWorktree: []");
+      expect(mainTs).not.toContain('copyToWorktree: ["node_modules"]');
+      expect(prompt).toContain("Use the Linear MCP tool");
+      expect(prompt).not.toContain("gh issue list");
+      expect(prompt).not.toContain("gh issue view");
+      expect(prompt).not.toContain("gh issue close");
+      expect(envExample).toContain("ChatGPT subscription auth");
+      expect(envExample).toContain("Linear MCP tool");
+      expect(envExample).not.toContain("OPENAI_API_KEY=");
+    });
   });
 
   describe("sequential-reviewer template", () => {
@@ -409,7 +492,7 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
-      const configDir = join(dir, ".sandcastle");
+      const configDir = join(dir, ".narukami");
       const { access } = await import("node:fs/promises");
 
       await expect(
@@ -423,26 +506,45 @@ describe("InitService scaffold", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("main.mts imports from @ai-hero/sandcastle", async () => {
+    it("main.mts imports from @yae-tools/narukami-shrine", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain('"@ai-hero/sandcastle"');
+      expect(mainTs).toContain('"@yae-tools/narukami-shrine"');
     });
 
-    it("main.mts calls sandcastle.run() twice per iteration (implement + review)", async () => {
+    it.each([
+      "sequential-reviewer",
+      "parallel-planner",
+      "parallel-planner-with-review",
+    ])(
+      "%s keeps empty copyToWorktree typed for strict template consumers",
+      async (templateName) => {
+        const dir = await makeDir();
+        await runScaffold(dir, { templateName });
+
+        const mainTs = await readFile(
+          join(dir, ".narukami", "main.mts"),
+          "utf-8",
+        );
+        expect(mainTs).toContain("const copyToWorktree: string[] = []");
+        expect(mainTs).not.toContain('["node_modules"]');
+      },
+    );
+
+    it("main.mts calls narukami.run() twice per iteration (implement + review)", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain("sandcastle");
+      expect(mainTs).toContain("narukami");
       const runCallCount = (mainTs.match(/\.run\(/g) ?? []).length;
       expect(runCallCount).toBeGreaterThanOrEqual(2);
       expect(mainTs).toContain("implement-prompt.md");
@@ -454,7 +556,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).toContain("branch");
@@ -465,11 +567,10 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("gh issue list");
-      expect(prompt).toContain("gh issue close");
+      expect(prompt).toContain("Linear MCP tool");
       expect(prompt).not.toContain("{{ISSUE_NUMBER}}");
       expect(prompt).not.toContain("{{ISSUE_TITLE}}");
       expect(prompt).not.toContain("{{BRANCH}}");
@@ -480,7 +581,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{BRANCH}}");
@@ -498,7 +599,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const standards = await readFile(
-        join(dir, ".sandcastle", "CODING_STANDARDS.md"),
+        join(dir, ".narukami", "CODING_STANDARDS.md"),
         "utf-8",
       );
       expect(standards).toContain("# Coding Standards");
@@ -506,15 +607,15 @@ describe("InitService scaffold", () => {
       expect(standards).toContain("Customize");
     });
 
-    it("review-prompt.md references @.sandcastle/CODING_STANDARDS.md", async () => {
+    it("review-prompt.md references @.narukami/CODING_STANDARDS.md", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("@.sandcastle/CODING_STANDARDS.md");
+      expect(prompt).toContain("@.narukami/CODING_STANDARDS.md");
     });
 
     it("review-prompt.md uses {{SOURCE_BRANCH}} instead of hardcoded main", async () => {
@@ -522,7 +623,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("git diff {{SOURCE_BRANCH}}...{{BRANCH}}");
@@ -537,7 +638,7 @@ describe("InitService scaffold", () => {
     await runScaffold(dir, { templateName: "simple-loop" });
 
     const { readdir } = await import("node:fs/promises");
-    const files = await readdir(join(dir, ".sandcastle"));
+    const files = await readdir(join(dir, ".narukami"));
     const compiledFiles = files.filter(
       (f) =>
         f.endsWith(".js") ||
@@ -549,35 +650,36 @@ describe("InitService scaffold", () => {
   });
 
   describe("getNextStepsLines", () => {
-    it("blank template returns steps mentioning .env and main filename (not npx sandcastle run)", () => {
+    it("blank template returns steps mentioning .env and main filename (not npx narukami run)", () => {
       const lines = getNextStepsLines("blank", "main.mts");
       expect(lines.length).toBeGreaterThanOrEqual(2);
       const joined = lines.join("\n");
       expect(joined).toContain(".env");
       expect(joined).toContain("main.mts");
-      expect(joined).not.toContain("npx sandcastle run");
+      expect(joined).not.toContain("npx narukami run");
     });
 
-    it("non-blank template returns steps mentioning .env, package.json scripts, and npm run sandcastle", () => {
+    it("non-blank template returns steps mentioning .env, package.json scripts, and npm run narukami", () => {
       const lines = getNextStepsLines("simple-loop", "main.mts");
       const joined = lines.join("\n");
       expect(joined).toContain(".env");
       expect(joined).toContain("package.json");
-      expect(joined).toContain("npm run sandcastle");
+      expect(joined).toContain("npm run narukami");
     });
 
-    it("non-blank template includes a note about customizing the install command", () => {
+    it("non-blank template includes a note about the sandbox install hook", () => {
       const lines = getNextStepsLines("simple-loop", "main.mts");
       const joined = lines.join("\n");
-      expect(joined).toContain("npm install");
-      expect(joined).toContain("onSandboxReady");
+      expect(joined).toContain("install hook");
+      expect(joined).toContain("sandbox");
     });
 
-    it("non-blank template mentions copyToWorktree and node_modules", () => {
+    it("non-blank template says copyToWorktree is empty to avoid host node_modules", () => {
       const lines = getNextStepsLines("simple-loop", "main.mts");
       const joined = lines.join("\n");
       expect(joined).toContain("copyToWorktree");
       expect(joined).toContain("node_modules");
+      expect(joined).toContain("empty by default");
     });
 
     it("blank template includes a step to customize prompt.md", () => {
@@ -650,106 +752,104 @@ describe("InitService scaffold", () => {
     await runScaffold(dir, { agent: piAgent, model: "claude-sonnet-4-6" });
 
     const dockerfile = await readFile(
-      join(dir, ".sandcastle", "Dockerfile"),
+      join(dir, ".narukami", "Dockerfile"),
       "utf-8",
     );
     expect(dockerfile).toContain("FROM node:22-bookworm");
     expect(dockerfile).toContain("@mariozechner/pi-coding-agent");
-    expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+    expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
   });
 
   it("scaffolds main.mts with pi factory import when pi agent selected", async () => {
     const dir = await makeDir();
     await runScaffold(dir, { agent: piAgent, model: "claude-sonnet-4-6" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
     expect(mainTs).toContain('pi("claude-sonnet-4-6")');
     expect(mainTs).not.toContain("claudeCode");
   });
 
   it("scaffolds codex agent with codex Dockerfile", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { agent: codexAgent, model: "gpt-5.4-mini" });
+    await runScaffold(dir, { agent: codexAgent, model: "gpt-5.5" });
 
     const dockerfile = await readFile(
-      join(dir, ".sandcastle", "Dockerfile"),
+      join(dir, ".narukami", "Dockerfile"),
       "utf-8",
     );
     expect(dockerfile).toContain("FROM node:22-bookworm");
     expect(dockerfile).toContain("@openai/codex");
-    expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+    expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
   });
 
   it("scaffolds main.mts with codex factory import when codex agent selected", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { agent: codexAgent, model: "gpt-5.4-mini" });
+    await runScaffold(dir, { agent: codexAgent, model: "gpt-5.5" });
 
-    const mainTs = await readFile(
-      join(dir, ".sandcastle", "main.mts"),
-      "utf-8",
-    );
-    expect(mainTs).toContain('codex("gpt-5.4-mini")');
+    const mainTs = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
+    expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
     expect(mainTs).not.toContain("claudeCode");
   });
 
   // --- createLabel option ---
 
-  it("simple-loop prompt.md retains --label Sandcastle when createLabel is true", async () => {
+  it("simple-loop prompt.md retains --label Narukami Shrine when createLabel is true", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { templateName: "simple-loop", createLabel: true });
+    await runScaffold(dir, {
+      templateName: "simple-loop",
+      createLabel: true,
+      issueProvider: getIssueProvider("github-issues"),
+    });
 
-    const prompt = await readFile(
-      join(dir, ".sandcastle", "prompt.md"),
-      "utf-8",
-    );
-    expect(prompt).toContain("--label Sandcastle");
+    const prompt = await readFile(join(dir, ".narukami", "prompt.md"), "utf-8");
+    expect(prompt).toContain("--label Narukami Shrine");
   });
 
-  it("simple-loop prompt.md strips --label Sandcastle when createLabel is false", async () => {
+  it("simple-loop prompt.md strips --label Narukami Shrine when createLabel is false", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { templateName: "simple-loop", createLabel: false });
+    await runScaffold(dir, {
+      templateName: "simple-loop",
+      createLabel: false,
+      issueProvider: getIssueProvider("github-issues"),
+    });
 
-    const prompt = await readFile(
-      join(dir, ".sandcastle", "prompt.md"),
-      "utf-8",
-    );
-    expect(prompt).not.toContain("--label Sandcastle");
+    const prompt = await readFile(join(dir, ".narukami", "prompt.md"), "utf-8");
+    expect(prompt).not.toContain("--label Narukami Shrine");
     // The gh issue list command should still be valid
     expect(prompt).toContain("gh issue list");
     // No double spaces in gh commands from removal
     expect(prompt).not.toMatch(/gh issue list {2}/);
   });
 
-  it("parallel-planner plan-prompt.md strips --label Sandcastle when createLabel is false", async () => {
+  it("parallel-planner plan-prompt.md strips --label Narukami Shrine when createLabel is false", async () => {
     const dir = await makeDir();
     await runScaffold(dir, {
       templateName: "parallel-planner",
       createLabel: false,
+      issueProvider: getIssueProvider("github-issues"),
     });
 
     const prompt = await readFile(
-      join(dir, ".sandcastle", "plan-prompt.md"),
+      join(dir, ".narukami", "plan-prompt.md"),
       "utf-8",
     );
-    expect(prompt).not.toContain("--label Sandcastle");
+    expect(prompt).not.toContain("--label Narukami Shrine");
     expect(prompt).toContain("gh issue list");
   });
 
-  it("sequential-reviewer implement-prompt.md strips --label Sandcastle when createLabel is false", async () => {
+  it("sequential-reviewer implement-prompt.md strips --label Narukami Shrine when createLabel is false", async () => {
     const dir = await makeDir();
     await runScaffold(dir, {
       templateName: "sequential-reviewer",
       createLabel: false,
+      issueProvider: getIssueProvider("github-issues"),
     });
 
     const prompt = await readFile(
-      join(dir, ".sandcastle", "implement-prompt.md"),
+      join(dir, ".narukami", "implement-prompt.md"),
       "utf-8",
     );
-    expect(prompt).not.toContain("--label Sandcastle");
+    expect(prompt).not.toContain("--label Narukami Shrine");
     expect(prompt).toContain("gh issue list");
   });
 
@@ -768,20 +868,20 @@ describe("InitService scaffold", () => {
     for (const { template, file } of cases) {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: template });
-      const prompt = await readFile(join(dir, ".sandcastle", file), "utf-8");
+      const prompt = await readFile(join(dir, ".narukami", file), "utf-8");
       expect(prompt, `${template}/${file}`).not.toContain("{{TASK_ID}}");
     }
   });
 
   it("createLabel defaults to true (label retained when not specified)", async () => {
     const dir = await makeDir();
-    await runScaffold(dir, { templateName: "simple-loop" });
+    await runScaffold(dir, {
+      templateName: "simple-loop",
+      issueProvider: getIssueProvider("github-issues"),
+    });
 
-    const prompt = await readFile(
-      join(dir, ".sandcastle", "prompt.md"),
-      "utf-8",
-    );
-    expect(prompt).toContain("--label Sandcastle");
+    const prompt = await readFile(join(dir, ".narukami", "prompt.md"), "utf-8");
+    expect(prompt).toContain("--label Narukami Shrine");
   });
 
   it("unknown template name throws a clear error", async () => {
@@ -796,7 +896,7 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner" });
 
-      const configDir = join(dir, ".sandcastle");
+      const configDir = join(dir, ".narukami");
       const { access } = await import("node:fs/promises");
 
       await expect(
@@ -813,27 +913,27 @@ describe("InitService scaffold", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("main.mts uses npm install hook and imports sandcastle", async () => {
+    it("main.mts uses npm install hook and imports narukami", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).toContain("npm install");
-      expect(mainTs).toContain("sandcastle");
+      expect(mainTs).toContain("narukami");
     });
 
-    it("main.mts imports from @ai-hero/sandcastle", async () => {
+    it("main.mts imports from @yae-tools/narukami-shrine", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain('"@ai-hero/sandcastle"');
+      expect(mainTs).toContain('"@yae-tools/narukami-shrine"');
     });
 
     it("main.mts references the specified model for all factory calls", async () => {
@@ -841,11 +941,11 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      // All factory calls should use the specified model (default: claude-opus-4-6)
-      expect(mainTs).toContain("claude-opus-4-6");
+      // All factory calls should use the default Codex model and reasoning effort.
+      expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
     });
 
     it("implement-prompt.md contains {{TASK_ID}}, {{ISSUE_TITLE}}, {{BRANCH}} prompt arguments", async () => {
@@ -853,7 +953,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{TASK_ID}}");
@@ -866,7 +966,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{BRANCHES}}");
@@ -878,7 +978,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).not.toContain("completedBranches.length === 1");
@@ -888,18 +988,18 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner" });
 
-      const configDir = join(dir, ".sandcastle");
+      const configDir = join(dir, ".narukami");
       const dockerfile = await readFile(join(configDir, "Dockerfile"), "utf-8");
       expect(dockerfile).toContain("FROM node:22-bookworm");
-      expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
 
       const envExample = await readFile(
         join(configDir, ".env.example"),
         "utf-8",
       );
-      // Dynamic env: claude-code agent → ANTHROPIC_API_KEY, default backlog → GH_TOKEN
-      expect(envExample).toContain("ANTHROPIC_API_KEY=");
-      expect(envExample).toContain("GH_TOKEN=");
+      // Dynamic env: default Codex agent + Linear issue provider.
+      expect(envExample).toContain("ChatGPT subscription auth");
+      expect(envExample).toContain("Linear MCP tool");
     });
   });
 
@@ -908,7 +1008,7 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
-      const configDir = join(dir, ".sandcastle");
+      const configDir = join(dir, ".narukami");
       const { access } = await import("node:fs/promises");
 
       await expect(
@@ -928,15 +1028,15 @@ describe("InitService scaffold", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("main.mts imports from @ai-hero/sandcastle", async () => {
+    it("main.mts imports from @yae-tools/narukami-shrine", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain('"@ai-hero/sandcastle"');
+      expect(mainTs).toContain('"@yae-tools/narukami-shrine"');
     });
 
     it("main.mts uses createSandbox for shared sandbox per branch", async () => {
@@ -944,7 +1044,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).toContain("createSandbox");
@@ -957,7 +1057,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).toContain("implement-prompt.md");
@@ -970,7 +1070,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       // Reviewer result must be captured, not discarded
@@ -985,7 +1085,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       expect(mainTs).toContain("Promise.allSettled");
@@ -996,7 +1096,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
       // Check planner maxIterations: 1 (near "planner" name)
@@ -1033,7 +1133,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{TASK_ID}}");
@@ -1046,7 +1146,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{BRANCH}}");
@@ -1057,7 +1157,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{BRANCHES}}");
@@ -1075,18 +1175,18 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
-      const configDir = join(dir, ".sandcastle");
+      const configDir = join(dir, ".narukami");
       const dockerfile = await readFile(join(configDir, "Dockerfile"), "utf-8");
       expect(dockerfile).toContain("FROM node:22-bookworm");
-      expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
 
       const envExample = await readFile(
         join(configDir, ".env.example"),
         "utf-8",
       );
-      // Dynamic env: claude-code agent → ANTHROPIC_API_KEY, default backlog → GH_TOKEN
-      expect(envExample).toContain("ANTHROPIC_API_KEY=");
-      expect(envExample).toContain("GH_TOKEN=");
+      // Dynamic env: default Codex agent + Linear issue provider.
+      expect(envExample).toContain("ChatGPT subscription auth");
+      expect(envExample).toContain("Linear MCP tool");
     });
 
     it("main.mts references the specified model for all factory calls", async () => {
@@ -1094,10 +1194,10 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const mainTs = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain("claude-opus-4-6");
+      expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
     });
 
     it("scaffolds CODING_STANDARDS.md with minimal starter content", async () => {
@@ -1105,22 +1205,22 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const standards = await readFile(
-        join(dir, ".sandcastle", "CODING_STANDARDS.md"),
+        join(dir, ".narukami", "CODING_STANDARDS.md"),
         "utf-8",
       );
       expect(standards).toContain("# Coding Standards");
       expect(standards).toContain("Customize");
     });
 
-    it("review-prompt.md references @.sandcastle/CODING_STANDARDS.md", async () => {
+    it("review-prompt.md references @.narukami/CODING_STANDARDS.md", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("@.sandcastle/CODING_STANDARDS.md");
+      expect(prompt).toContain("@.narukami/CODING_STANDARDS.md");
     });
 
     it("review-prompt.md uses {{SOURCE_BRANCH}} instead of hardcoded main", async () => {
@@ -1128,7 +1228,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "review-prompt.md"),
+        join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("git diff {{SOURCE_BRANCH}}...{{BRANCH}}");
@@ -1138,72 +1238,90 @@ describe("InitService scaffold", () => {
     });
   });
 
-  // --- Backlog manager ---
+  // --- Issue provider ---
 
-  describe("Backlog manager registry", () => {
-    it("listBacklogManagers returns github-issues and beads", () => {
-      const managers = listBacklogManagers();
-      expect(managers.some((m) => m.name === "github-issues")).toBe(true);
-      expect(managers.some((m) => m.name === "beads")).toBe(true);
+  describe("Issue provider registry", () => {
+    it("listIssueProviders returns linear, github-issues, and beads", () => {
+      const providers = listIssueProviders();
+      expect(providers.some((m) => m.name === "linear")).toBe(true);
+      expect(providers.some((m) => m.name === "github-issues")).toBe(true);
+      expect(providers.some((m) => m.name === "beads")).toBe(true);
     });
 
-    it("getBacklogManager returns github-issues entry with expected templateArgs", () => {
-      const manager = getBacklogManager("github-issues");
-      expect(manager).toBeDefined();
-      expect(manager!.label).toBe("GitHub Issues");
-      expect(manager!.templateArgs.LIST_TASKS_COMMAND).toContain(
+    it("getIssueProvider returns linear entry with MCP-focused templateArgs", () => {
+      const provider = getIssueProvider("linear");
+      expect(provider).toBeDefined();
+      expect(provider!.label).toBe("Linear");
+      expect(provider!.hint).toContain("Linear MCP tool");
+      expect(provider!.templateArgs.LIST_TASKS_COMMAND).toContain(
+        "Linear MCP tool",
+      );
+      expect(provider!.templateArgs.VIEW_TASK_COMMAND).toContain(
+        "Linear MCP tool",
+      );
+      expect(provider!.templateArgs.CLOSE_TASK_COMMAND).toContain(
+        "Linear MCP tool",
+      );
+      expect(provider!.envExample).toContain("Linear MCP tool");
+    });
+
+    it("getIssueProvider returns github-issues entry with expected templateArgs", () => {
+      const provider = getIssueProvider("github-issues");
+      expect(provider).toBeDefined();
+      expect(provider!.label).toBe("GitHub Issues");
+      expect(provider!.templateArgs.LIST_TASKS_COMMAND).toContain(
         "gh issue list",
       );
-      expect(manager!.templateArgs.LIST_TASKS_COMMAND).toContain("labels");
-      expect(manager!.templateArgs.LIST_TASKS_COMMAND).toContain("comments");
-      expect(manager!.templateArgs.VIEW_TASK_COMMAND).toContain(
+      expect(provider!.templateArgs.LIST_TASKS_COMMAND).toContain("labels");
+      expect(provider!.templateArgs.LIST_TASKS_COMMAND).toContain("comments");
+      expect(provider!.templateArgs.VIEW_TASK_COMMAND).toContain(
         "gh issue view",
       );
-      expect(manager!.templateArgs.CLOSE_TASK_COMMAND).toContain(
+      expect(provider!.templateArgs.CLOSE_TASK_COMMAND).toContain(
         "gh issue close",
       );
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain(
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain(
         "GitHub CLI",
       );
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain("gh");
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain("gh");
     });
 
-    it("getBacklogManager returns beads entry with expected templateArgs", () => {
-      const manager = getBacklogManager("beads");
-      expect(manager).toBeDefined();
-      expect(manager!.label).toBe("Beads");
-      expect(manager!.templateArgs.LIST_TASKS_COMMAND).toBe("bd ready --json");
-      expect(manager!.templateArgs.VIEW_TASK_COMMAND).toContain("bd show");
-      expect(manager!.templateArgs.CLOSE_TASK_COMMAND).toContain("bd close");
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain("beads");
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain("libicu72");
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain(
+    it("getIssueProvider returns beads entry with expected templateArgs", () => {
+      const provider = getIssueProvider("beads");
+      expect(provider).toBeDefined();
+      expect(provider!.label).toBe("Beads");
+      expect(provider!.templateArgs.LIST_TASKS_COMMAND).toBe("bd ready --json");
+      expect(provider!.templateArgs.VIEW_TASK_COMMAND).toContain("bd show");
+      expect(provider!.templateArgs.CLOSE_TASK_COMMAND).toContain("bd close");
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain("beads");
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain("libicu72");
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain(
         "corepack enable",
       );
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).not.toContain("gh");
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).not.toContain(
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).not.toContain("gh");
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).not.toContain(
         "x86_64-linux-gnu",
       );
-      expect(manager!.templateArgs.BACKLOG_MANAGER_TOOLS).toContain(
+      expect(provider!.templateArgs.ISSUE_PROVIDER_TOOLS).toContain(
         "dpkg-architecture -qDEB_HOST_MULTIARCH",
       );
     });
 
-    it("getBacklogManager returns undefined for unknown manager", () => {
-      expect(getBacklogManager("nonexistent")).toBeUndefined();
+    it("getIssueProvider returns undefined for unknown provider", () => {
+      expect(getIssueProvider("nonexistent")).toBeUndefined();
     });
   });
 
-  describe("Backlog manager scaffold", () => {
+  describe("Issue provider scaffold", () => {
     it("simple-loop with github-issues produces prompt with gh issue commands (richer version)", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "simple-loop",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue list");
@@ -1218,75 +1336,76 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "simple-loop",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd ready --json");
       expect(prompt).toContain("bd close");
-      expect(prompt).not.toContain("gh issue");
+      expect(prompt).not.toContain("gh issue list");
       expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
       expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
 
-    it("simple-loop with beads skips --label Sandcastle (no label to strip)", async () => {
+    it("simple-loop with beads skips --label Narukami Shrine (no label to strip)", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "simple-loop",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
-      expect(prompt).not.toContain("--label Sandcastle");
+      expect(prompt).not.toContain("--label Narukami Shrine");
     });
 
-    it("simple-loop with github-issues retains --label Sandcastle when createLabel is true", async () => {
+    it("simple-loop with github-issues retains --label Narukami Shrine when createLabel is true", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "simple-loop",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
         createLabel: true,
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("--label Sandcastle");
+      expect(prompt).toContain("--label Narukami Shrine");
     });
 
-    it("simple-loop with github-issues strips --label Sandcastle when createLabel is false", async () => {
+    it("simple-loop with github-issues strips --label Narukami Shrine when createLabel is false", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "simple-loop",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
         createLabel: false,
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
-      expect(prompt).not.toContain("--label Sandcastle");
+      expect(prompt).not.toContain("--label Narukami Shrine");
       expect(prompt).toContain("gh issue list");
     });
 
-    it("scaffold without backlogManager defaults to github-issues", async () => {
+    it("scaffold without issueProvider defaults to linear", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "simple-loop" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
-      // Should default to github-issues and replace placeholders
-      expect(prompt).toContain("gh issue list");
+      // Should default to linear and replace placeholders
+      expect(prompt).toContain("Linear MCP tool");
+      expect(prompt).not.toContain("!`Use the Linear MCP tool");
       expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
     });
 
@@ -1296,11 +1415,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "sequential-reviewer",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue list");
@@ -1315,16 +1434,16 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "sequential-reviewer",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd ready --json");
       expect(prompt).toContain("bd close");
-      expect(prompt).not.toContain("gh issue");
+      expect(prompt).not.toContain("gh issue list");
       expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
       expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
@@ -1335,11 +1454,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "blank",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue list");
@@ -1350,11 +1469,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "blank",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "prompt.md"),
+        join(dir, ".narukami", "prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd ready --json");
@@ -1368,11 +1487,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const planPrompt = await readFile(
-        join(dir, ".sandcastle", "plan-prompt.md"),
+        join(dir, ".narukami", "plan-prompt.md"),
         "utf-8",
       );
       expect(planPrompt).toContain("gh issue list");
@@ -1385,11 +1504,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const planPrompt = await readFile(
-        join(dir, ".sandcastle", "plan-prompt.md"),
+        join(dir, ".narukami", "plan-prompt.md"),
         "utf-8",
       );
       expect(planPrompt).toContain("bd ready --json");
@@ -1403,10 +1522,7 @@ describe("InitService scaffold", () => {
         templateName: "parallel-planner",
       });
 
-      const main = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
-        "utf-8",
-      );
+      const main = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
       expect(main).toContain("id: string");
       expect(main).toContain("TASK_ID: issue.id");
       expect(main).not.toContain("number: number");
@@ -1421,7 +1537,7 @@ describe("InitService scaffold", () => {
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{TASK_ID}}");
@@ -1432,11 +1548,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue view");
@@ -1447,11 +1563,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd show");
@@ -1463,11 +1579,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue close");
@@ -1478,11 +1594,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd close");
@@ -1495,21 +1611,21 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { templateName: "parallel-planner" });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).not.toContain("close the issue when done");
       expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
 
-    it("parallel-planner implement-prompt uses backlog-agnostic language", async () => {
+    it("parallel-planner implement-prompt uses issue-provider-agnostic language", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner",
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).not.toContain("GitHub issue");
@@ -1521,11 +1637,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const planPrompt = await readFile(
-        join(dir, ".sandcastle", "plan-prompt.md"),
+        join(dir, ".narukami", "plan-prompt.md"),
         "utf-8",
       );
       expect(planPrompt).toContain("gh issue list");
@@ -1538,11 +1654,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const planPrompt = await readFile(
-        join(dir, ".sandcastle", "plan-prompt.md"),
+        join(dir, ".narukami", "plan-prompt.md"),
         "utf-8",
       );
       expect(planPrompt).toContain("bd ready --json");
@@ -1556,10 +1672,7 @@ describe("InitService scaffold", () => {
         templateName: "parallel-planner-with-review",
       });
 
-      const main = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
-        "utf-8",
-      );
+      const main = await readFile(join(dir, ".narukami", "main.mts"), "utf-8");
       expect(main).toContain("id: string");
       expect(main).toContain("TASK_ID: issue.id");
       expect(main).not.toContain("number: number");
@@ -1574,7 +1687,7 @@ describe("InitService scaffold", () => {
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).not.toContain("close the issue when done");
@@ -1588,7 +1701,7 @@ describe("InitService scaffold", () => {
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("{{TASK_ID}}");
@@ -1599,11 +1712,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue view");
@@ -1614,11 +1727,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd show");
@@ -1630,11 +1743,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("gh issue close");
@@ -1645,11 +1758,11 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "merge-prompt.md"),
+        join(dir, ".narukami", "merge-prompt.md"),
         "utf-8",
       );
       expect(prompt).toContain("bd close");
@@ -1657,51 +1770,51 @@ describe("InitService scaffold", () => {
       expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
     });
 
-    it("parallel-planner-with-review implement-prompt uses backlog-agnostic language", async () => {
+    it("parallel-planner-with-review implement-prompt uses issue-provider-agnostic language", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
         templateName: "parallel-planner-with-review",
       });
 
       const prompt = await readFile(
-        join(dir, ".sandcastle", "implement-prompt.md"),
+        join(dir, ".narukami", "implement-prompt.md"),
         "utf-8",
       );
       expect(prompt).not.toContain("GitHub issue");
     });
 
-    // --- Dockerfile backlog manager tools ---
+    // --- Dockerfile issue provider tools ---
 
     it("scaffold with github-issues produces Dockerfile with GitHub CLI install", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
-        backlogManager: getBacklogManager("github-issues"),
+        issueProvider: getIssueProvider("github-issues"),
       });
 
       const dockerfile = await readFile(
-        join(dir, ".sandcastle", "Dockerfile"),
+        join(dir, ".narukami", "Dockerfile"),
         "utf-8",
       );
       expect(dockerfile).toContain("GitHub CLI");
       expect(dockerfile).toContain("gh");
-      expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
     });
 
     it("scaffold with beads produces Dockerfile with beads install (no GitHub CLI)", async () => {
       const dir = await makeDir();
       await runScaffold(dir, {
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const dockerfile = await readFile(
-        join(dir, ".sandcastle", "Dockerfile"),
+        join(dir, ".narukami", "Dockerfile"),
         "utf-8",
       );
       expect(dockerfile).toContain("beads");
       expect(dockerfile).toContain("libicu72");
       expect(dockerfile).toContain("corepack enable");
       expect(dockerfile).not.toContain("GitHub CLI");
-      expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
       expect(dockerfile).not.toContain("x86_64-linux-gnu");
       expect(dockerfile).toContain("dpkg-architecture -qDEB_HOST_MULTIARCH");
     });
@@ -1710,18 +1823,18 @@ describe("InitService scaffold", () => {
       const dir = await makeDir();
       const podmanProvider = getSandboxProvider("podman")!;
       await runScaffold(dir, {
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
         sandboxProvider: podmanProvider,
       });
 
       const containerfile = await readFile(
-        join(dir, ".sandcastle", "Containerfile"),
+        join(dir, ".narukami", "Containerfile"),
         "utf-8",
       );
       expect(containerfile).toContain("beads");
       expect(containerfile).toContain("libicu72");
       expect(containerfile).not.toContain("GitHub CLI");
-      expect(containerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(containerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
       expect(containerfile).not.toContain("x86_64-linux-gnu");
       expect(containerfile).toContain("dpkg-architecture -qDEB_HOST_MULTIARCH");
     });
@@ -1731,11 +1844,11 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, {
         agent: piAgent,
         model: "claude-sonnet-4-6",
-        backlogManager: getBacklogManager("beads"),
+        issueProvider: getIssueProvider("beads"),
       });
 
       const dockerfile = await readFile(
-        join(dir, ".sandcastle", "Dockerfile"),
+        join(dir, ".narukami", "Dockerfile"),
         "utf-8",
       );
       expect(dockerfile).toContain("beads");
@@ -1754,7 +1867,7 @@ describe("InitService scaffold", () => {
       expect(result.mainFilename).toBe("main.mts");
       const { access } = await import("node:fs/promises");
       await expect(
-        access(join(dir, ".sandcastle", "main.mts")),
+        access(join(dir, ".narukami", "main.mts")),
       ).resolves.toBeUndefined();
     });
 
@@ -1768,10 +1881,10 @@ describe("InitService scaffold", () => {
 
       expect(result.mainFilename).toBe("main.mts");
       const mainContent = await readFile(
-        join(dir, ".sandcastle", "main.mts"),
+        join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainContent).toContain("@ai-hero/sandcastle");
+      expect(mainContent).toContain("@yae-tools/narukami-shrine");
     });
 
     it("scaffolds main.mts when package.json has type: commonjs", async () => {
@@ -1796,11 +1909,11 @@ describe("InitService scaffold", () => {
       expect(result.mainFilename).toBe("main.ts");
       const { access } = await import("node:fs/promises");
       await expect(
-        access(join(dir, ".sandcastle", "main.ts")),
+        access(join(dir, ".narukami", "main.ts")),
       ).resolves.toBeUndefined();
       // main.mts should NOT exist
       await expect(
-        access(join(dir, ".sandcastle", "main.mts")),
+        access(join(dir, ".narukami", "main.mts")),
       ).rejects.toThrow();
     });
 
@@ -1813,11 +1926,11 @@ describe("InitService scaffold", () => {
       await runScaffold(dir);
 
       const mainContent = await readFile(
-        join(dir, ".sandcastle", "main.ts"),
+        join(dir, ".narukami", "main.ts"),
         "utf-8",
       );
-      expect(mainContent).toContain("@ai-hero/sandcastle");
-      expect(mainContent).toContain('claudeCode("claude-opus-4-6")');
+      expect(mainContent).toContain("@yae-tools/narukami-shrine");
+      expect(mainContent).toContain('codex("gpt-5.5", { effort: "low" })');
     });
 
     it("main.ts scaffolded with type: module rewrites agent factory correctly", async () => {
@@ -1829,7 +1942,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir, { agent: piAgent, model: "claude-sonnet-4-6" });
 
       const mainContent = await readFile(
-        join(dir, ".sandcastle", "main.ts"),
+        join(dir, ".narukami", "main.ts"),
         "utf-8",
       );
       expect(mainContent).toContain('pi("claude-sonnet-4-6")');
@@ -1845,7 +1958,7 @@ describe("InitService scaffold", () => {
       await runScaffold(dir);
 
       const mainContent = await readFile(
-        join(dir, ".sandcastle", "main.ts"),
+        join(dir, ".narukami", "main.ts"),
         "utf-8",
       );
       expect(mainContent).not.toContain("main.mts");
@@ -1869,28 +1982,28 @@ describe("InitService scaffold", () => {
     const dockerProvider = getSandboxProvider("docker")!;
     const podmanProvider = getSandboxProvider("podman")!;
 
-    it("selecting docker writes Dockerfile to .sandcastle/", async () => {
+    it("selecting docker writes Dockerfile to .narukami/", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { sandboxProvider: dockerProvider });
 
       const dockerfile = await readFile(
-        join(dir, ".sandcastle", "Dockerfile"),
+        join(dir, ".narukami", "Dockerfile"),
         "utf-8",
       );
       expect(dockerfile).toContain("FROM node:22-bookworm");
-      expect(dockerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
     });
 
-    it("selecting podman writes Containerfile to .sandcastle/", async () => {
+    it("selecting podman writes Containerfile to .narukami/", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { sandboxProvider: podmanProvider });
 
       const containerfile = await readFile(
-        join(dir, ".sandcastle", "Containerfile"),
+        join(dir, ".narukami", "Containerfile"),
         "utf-8",
       );
       expect(containerfile).toContain("FROM node:22-bookworm");
-      expect(containerfile).not.toContain("{{BACKLOG_MANAGER_TOOLS}}");
+      expect(containerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
     });
 
     it("selecting podman does not write Dockerfile", async () => {
@@ -1899,7 +2012,7 @@ describe("InitService scaffold", () => {
 
       const { access } = await import("node:fs/promises");
       await expect(
-        access(join(dir, ".sandcastle", "Dockerfile")),
+        access(join(dir, ".narukami", "Dockerfile")),
       ).rejects.toThrow();
     });
 
@@ -1909,7 +2022,7 @@ describe("InitService scaffold", () => {
 
       const { access } = await import("node:fs/promises");
       await expect(
-        access(join(dir, ".sandcastle", "Containerfile")),
+        access(join(dir, ".narukami", "Containerfile")),
       ).rejects.toThrow();
     });
   });

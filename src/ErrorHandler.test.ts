@@ -82,11 +82,11 @@ describe("formatErrorMessage", () => {
   it("ConfigDirError passes through message (includes init hint)", () => {
     const msg = formatErrorMessage(
       new ConfigDirError({
-        message: "No .sandcastle/ found. Run `sandcastle init` first.",
+        message: "No .narukami/ found. Run `narukami init` first.",
       }),
     );
-    expect(msg).toContain("No .sandcastle/");
-    expect(msg).toContain("sandcastle init");
+    expect(msg).toContain("No .narukami/");
+    expect(msg).toContain("narukami init");
   });
 
   it("InitError passes through message", () => {
@@ -155,12 +155,12 @@ describe("withFriendlyErrors", () => {
       withFriendlyErrors(
         Effect.fail(
           new ConfigDirError({
-            message: "No .sandcastle/ found. Run `sandcastle init` first.",
+            message: "No .narukami/ found. Run `narukami init` first.",
           }),
         ),
       ),
     );
-    expect(statusOf(entries)!.message).toContain("No .sandcastle/");
+    expect(statusOf(entries)!.message).toContain("No .narukami/");
   });
 
   it("routes AgentIdleTimeoutError through Display with timeout seconds", async () => {

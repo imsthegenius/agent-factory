@@ -2,7 +2,7 @@
  * Podman sandbox provider — creates Podman containers with bind-mounts.
  *
  * Usage:
- *   import { podman } from "sandcastle/sandboxes/podman";
+ *   import { podman } from "narukami/sandboxes/podman";
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: podman() });
  */
 
@@ -24,6 +24,13 @@ import {
 } from "../SandboxProvider.js";
 import type { MountConfig } from "../MountConfig.js";
 import { defaultImageName, resolveUserMounts } from "../mountUtils.js";
+
+const WRITABLE_RUNTIME_ENV = {
+  GIT_CONFIG_GLOBAL: "/tmp/.gitconfig",
+  COREPACK_HOME: "/tmp/corepack",
+  PNPM_HOME: "/tmp/pnpm",
+  XDG_CACHE_HOME: "/tmp/.cache",
+};
 
 export interface PodmanOptions {
   /** Podman image name (default: derived from repo directory name). */
@@ -105,7 +112,7 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
     create: async (
       createOptions: BindMountCreateOptions,
     ): Promise<BindMountSandboxHandle> => {
-      const containerName = `sandcastle-${randomUUID()}`;
+      const containerName = `narukami-${randomUUID()}`;
 
       const worktreePath =
         createOptions.mounts.find(
@@ -130,7 +137,11 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
       // Pre-flight: verify image exists locally
       await checkImageExists(imageName);
 
-      const env = { ...createOptions.env, HOME: "/home/agent" };
+      const env = {
+        ...WRITABLE_RUNTIME_ENV,
+        ...createOptions.env,
+        HOME: createOptions.env.HOME ?? "/home/agent",
+      };
       const envArgs = Object.entries(env).flatMap(([key, value]) => [
         "-e",
         `${key}=${value}`,

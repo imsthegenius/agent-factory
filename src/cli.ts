@@ -18,8 +18,8 @@ import {
   listTemplates,
   listAgents,
   getAgent,
-  listBacklogManagers,
-  getBacklogManager,
+  listIssueProviders,
+  getIssueProvider,
   listSandboxProviders,
   getSandboxProvider,
   getNextStepsLines,
@@ -27,7 +27,7 @@ import {
 import { defaultImageName } from "./sandboxes/docker.js";
 import type {
   AgentEntry,
-  BacklogManagerEntry,
+  IssueProviderEntry,
   SandboxProviderEntry,
 } from "./InitService.js";
 import { ConfigDirError, InitError } from "./errors.js";
@@ -49,7 +49,7 @@ const resolveImageName = (
 
 // --- Config directory check ---
 
-const CONFIG_DIR = ".sandcastle";
+const CONFIG_DIR = ".narukami";
 
 const requireConfigDir = (
   cwd: string,
@@ -62,7 +62,7 @@ const requireConfigDir = (
     if (!exists) {
       yield* Effect.fail(
         new ConfigDirError({
-          message: "No .sandcastle/ found. Run `sandcastle init` first.",
+          message: "No .narukami/ found. Run `narukami init` first.",
         }),
       );
     }
@@ -78,13 +78,13 @@ const templateOption = Options.text("template").pipe(
 );
 
 const agentOption = Options.text("agent").pipe(
-  Options.withDescription("Agent to use (e.g. claude-code)"),
+  Options.withDescription("Agent to use (e.g. codex)"),
   Options.optional,
 );
 
 const initModelOption = Options.text("model").pipe(
   Options.withDescription(
-    "Model to use for the agent (e.g. claude-sonnet-4-6). Defaults to the agent's default model",
+    "Model to use for the agent (e.g. gpt-5.5). Defaults to the agent's default model",
   ),
   Options.optional,
 );
@@ -140,11 +140,14 @@ const initCommand = Command.make(
         const selected = yield* Effect.promise(() =>
           clack.select({
             message: "Select an agent:",
-            initialValue: "claude-code",
+            initialValue: "codex",
             options: agents.map((a) => ({
               value: a.name,
               label: a.label,
-              hint: `Default model: ${a.defaultModel}`,
+              hint:
+                a.name === "codex"
+                  ? `Default model: ${a.defaultModel} / low reasoning; uses ChatGPT subscription auth`
+                  : `Default model: ${a.defaultModel}`,
             })),
           }),
         );
@@ -185,28 +188,29 @@ const initCommand = Command.make(
         selectedSandboxProvider = getSandboxProvider(selected as string)!;
       }
 
-      // Resolve backlog manager: interactive select
-      const backlogManagers = listBacklogManagers();
-      let selectedBacklogManager: BacklogManagerEntry;
+      // Resolve issue provider: interactive select
+      const issueProviders = listIssueProviders();
+      let selectedIssueProvider: IssueProviderEntry;
       {
         const selected = yield* Effect.promise(() =>
           clack.select({
-            message: "Select a backlog manager:",
-            initialValue: "github-issues",
-            options: backlogManagers.map((b) => ({
+            message: "Select an issue provider:",
+            initialValue: "linear",
+            options: issueProviders.map((b) => ({
               value: b.name,
               label: b.label,
+              hint: b.hint,
             })),
           }),
         );
         if (clack.isCancel(selected)) {
           yield* Effect.fail(
             new InitError({
-              message: "Backlog manager selection cancelled.",
+              message: "Issue provider selection cancelled.",
             }),
           );
         }
-        selectedBacklogManager = getBacklogManager(selected as string)!;
+        selectedIssueProvider = getIssueProvider(selected as string)!;
       }
 
       // Resolve template: CLI flag > interactive select (already validated above)
@@ -233,13 +237,13 @@ const initCommand = Command.make(
         selectedTemplate = selected as string;
       }
 
-      // Offer to create the "Sandcastle" label on the repo (skip for non-GitHub backlog managers)
+      // Offer to create the "Narukami Shrine" label on the repo (skip for non-GitHub issue providers)
       let shouldCreateLabel: boolean | symbol = false;
-      if (selectedBacklogManager.name === "github-issues") {
+      if (selectedIssueProvider.name === "github-issues") {
         shouldCreateLabel = yield* Effect.promise(() =>
           clack.confirm({
             message:
-              'Create a "Sandcastle" GitHub label? (Templates filter issues by this label)',
+              'Create a "Narukami Shrine" GitHub label? (Templates filter issues by this label)',
             initialValue: true,
           }),
         );
@@ -248,7 +252,7 @@ const initCommand = Command.make(
           yield* Effect.try({
             try: () =>
               execSync(
-                'gh label create "Sandcastle" --description "Issues for Sandcastle to work on" --color "F9A825" 2>/dev/null',
+                'gh label create "Narukami Shrine" --description "Issues for Narukami Shrine to work on" --color "F9A825" 2>/dev/null',
                 { cwd, stdio: "ignore" },
               ),
             catch: () => undefined,
@@ -257,13 +261,13 @@ const initCommand = Command.make(
       }
 
       const scaffoldResult = yield* d.spinner(
-        "Scaffolding .sandcastle/ config directory...",
+        "Scaffolding .narukami/ config directory...",
         scaffold(cwd, {
           agent: selectedAgent,
           model: selectedModel,
           templateName: selectedTemplate,
           createLabel: shouldCreateLabel === true,
-          backlogManager: selectedBacklogManager,
+          issueProvider: selectedIssueProvider,
           sandboxProvider: selectedSandboxProvider,
         }).pipe(
           Effect.mapError(
@@ -300,7 +304,7 @@ const initCommand = Command.make(
         yield* d.status("Init complete! Image built successfully.", "success");
       } else {
         yield* d.status(
-          `Init complete! Run \`sandcastle ${selectedSandboxProvider.cliNamespace} build-image\` to build the ${providerLabel} image later.`,
+          `Init complete! Run \`narukami ${selectedSandboxProvider.cliNamespace} build-image\` to build the ${providerLabel} image later.`,
           "success",
         );
       }
@@ -462,19 +466,19 @@ const podmanCommand = Command.make("podman", {}, () =>
 
 // --- Root command ---
 
-const rootCommand = Command.make("sandcastle", {}, () =>
+const rootCommand = Command.make("narukami", {}, () =>
   Effect.gen(function* () {
     const d = yield* Display;
-    yield* d.status(`Sandcastle v${VERSION}`, "info");
+    yield* d.status(`Narukami Shrine v${VERSION}`, "info");
     yield* d.status("Use --help to see available commands.", "info");
   }),
 );
 
-export const sandcastle = rootCommand.pipe(
+export const narukami = rootCommand.pipe(
   Command.withSubcommands([initCommand, dockerCommand, podmanCommand]),
 );
 
-export const cli = Command.run(sandcastle, {
-  name: "sandcastle",
+export const cli = Command.run(narukami, {
+  name: "narukami",
   version: VERSION,
 });

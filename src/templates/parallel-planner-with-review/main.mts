@@ -1,7 +1,7 @@
 // Parallel Planner with Review — four-phase orchestration loop
 //
 // This template drives a multi-phase workflow:
-//   Phase 1 (Plan):             An opus agent analyzes open issues, builds a
+//   Phase 1 (Plan):             A planning agent analyzes open issues, builds a
 //                               dependency graph, and outputs a <plan> JSON
 //                               listing unblocked issues with branch names.
 //   Phase 2 (Execute + Review): For each issue, a sandbox is created via
@@ -17,19 +17,19 @@
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .sandcastle/main.mts
+//   npx tsx .narukami/main.mts
 // Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
 
-import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import * as narukami from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 // Maximum number of plan→execute→merge cycles before stopping.
-// Raise this if your backlog is large; lower it for a quick smoke-test run.
+// Raise this if your issue queue is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
@@ -38,10 +38,9 @@ const hooks = {
   sandbox: { onSandboxReady: [{ command: "npm install" }] },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
+// Keep this empty by default. Copying host node_modules into a Linux sandbox
+// can break native packages such as esbuild when the host is macOS/Windows.
+const copyToWorktree: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -53,22 +52,22 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 1: Plan
   //
-  // The planning agent (opus, for deeper reasoning) reads the open issue list,
+  // The planning agent reads the open issue list,
   // builds a dependency graph, and selects the issues that can be worked in
   // parallel right now (i.e., no blocking dependencies on other open issues).
   //
   // It outputs a <plan> JSON block — we parse that to drive Phase 2.
   // -------------------------------------------------------------------------
-  const plan = await sandcastle.run({
+  const plan = await narukami.run({
     hooks,
     sandbox: docker(),
     name: "planner",
     // One iteration is enough: the planner just needs to read and reason,
     // not write code.
     maxIterations: 1,
-    // Opus for planning: dependency analysis benefits from deeper reasoning.
-    agent: sandcastle.claudeCode("claude-opus-4-6"),
-    promptFile: "./.sandcastle/plan-prompt.md",
+    // The scaffold rewrites this placeholder to your selected planning agent.
+    agent: narukami.claudeCode("claude-opus-4-6"),
+    promptFile: "./.narukami/plan-prompt.md",
   });
 
   // Extract the <plan>…</plan> block from the agent's stdout.
@@ -109,7 +108,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
   const settled = await Promise.allSettled(
     issues.map(async (issue) => {
-      const sandbox = await sandcastle.createSandbox({
+      const sandbox = await narukami.createSandbox({
         branch: issue.branch,
         sandbox: docker(),
         hooks,
@@ -121,8 +120,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const implement = await sandbox.run({
           name: "implementer",
           maxIterations: 100,
-          agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-          promptFile: "./.sandcastle/implement-prompt.md",
+          agent: narukami.claudeCode("claude-sonnet-4-6"),
+          promptFile: "./.narukami/implement-prompt.md",
           promptArgs: {
             TASK_ID: issue.id,
             ISSUE_TITLE: issue.title,
@@ -135,8 +134,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           const review = await sandbox.run({
             name: "reviewer",
             maxIterations: 1,
-            agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-            promptFile: "./.sandcastle/review-prompt.md",
+            agent: narukami.claudeCode("claude-sonnet-4-6"),
+            promptFile: "./.narukami/review-prompt.md",
             promptArgs: {
               BRANCH: issue.branch,
             },
@@ -201,20 +200,18 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
-  await sandcastle.run({
+  await narukami.run({
     hooks,
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
-    agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-    promptFile: "./.sandcastle/merge-prompt.md",
+    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    promptFile: "./.narukami/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
       // A markdown list of issue IDs and titles, one per line.
-      ISSUES: completedIssues
-        .map((i) => `- ${i.id}: ${i.title}`)
-        .join("\n"),
+      ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
     },
   });
 

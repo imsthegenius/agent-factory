@@ -2,7 +2,7 @@
  * No-sandbox provider — runs the agent directly on the host with no container isolation.
  *
  * Usage:
- *   import { noSandbox } from "sandcastle/sandboxes/no-sandbox";
+ *   import { noSandbox } from "narukami/sandboxes/no-sandbox";
  *   await interactive({ agent: claudeCode("claude-opus-4-6"), sandbox: noSandbox() });
  *
  * Only valid for `interactive()` — not accepted by `run()` or `createSandbox()`.

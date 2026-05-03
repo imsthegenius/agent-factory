@@ -29,10 +29,10 @@ const cliPath = join(import.meta.dirname, "..", "dist", "main.js");
 const runCli = (args: string, cwd: string) =>
   execAsync(`node ${cliPath} ${args}`, { cwd });
 
-describe("sandcastle CLI", () => {
+describe("narukami CLI", () => {
   it("shows help with --help flag", async () => {
     const { stdout } = await runCli("--help", process.cwd());
-    expect(stdout).toContain("sandcastle");
+    expect(stdout).toContain("narukami");
     expect(stdout).toContain("docker");
     expect(stdout).toContain("init");
     expect(stdout).not.toContain("run");
@@ -53,7 +53,7 @@ describe("sandcastle CLI", () => {
     expect(stdout).toContain("remove-image");
   });
 
-  it("docker build-image errors when .sandcastle/ is missing", async () => {
+  it("docker build-image errors when .narukami/ is missing", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
@@ -64,7 +64,7 @@ describe("sandcastle CLI", () => {
     } catch (err: unknown) {
       const { stdout, stderr } = err as { stdout: string; stderr: string };
       const output = stdout + stderr;
-      expect(output).toContain("No .sandcastle/ found");
+      expect(output).toContain("No .narukami/ found");
     }
   });
 
@@ -137,7 +137,7 @@ describe("sandcastle CLI", () => {
     expect(stdout).toContain("--image-name");
   });
 
-  it("podman build-image errors when .sandcastle/ is missing", async () => {
+  it("podman build-image errors when .narukami/ is missing", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
@@ -148,7 +148,7 @@ describe("sandcastle CLI", () => {
     } catch (err: unknown) {
       const { stdout, stderr } = err as { stdout: string; stderr: string };
       const output = stdout + stderr;
-      expect(output).toContain("No .sandcastle/ found");
+      expect(output).toContain("No .narukami/ found");
     }
   });
 

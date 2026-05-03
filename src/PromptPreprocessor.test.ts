@@ -1,5 +1,5 @@
 import { Effect, Layer, Ref } from "effect";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -82,7 +82,7 @@ describe("PromptPreprocessor", () => {
     const { sandboxDir, layer } = await setup();
     const prompt = "Dir: !`pwd`";
     const result = await run(prompt, layer, sandboxDir);
-    expect(result).toBe(`Dir: ${sandboxDir}`);
+    expect(result).toBe(`Dir: ${await realpath(sandboxDir)}`);
   });
 
   it("runs multiple shell expressions in parallel", async () => {

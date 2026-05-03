@@ -21,7 +21,11 @@ const TOOL_ARG_FIELDS: Record<string, string> = {
 const extractErrorMessage = (obj: any): string | undefined => {
   const err = obj.error;
   if (typeof err === "string") return err;
-  if (typeof err === "object" && err !== null && typeof err.message === "string") {
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    typeof err.message === "string"
+  ) {
     return err.message;
   }
   if (typeof obj.message === "string") return obj.message;
@@ -121,7 +125,7 @@ export interface AgentProvider {
   parseSessionUsage?(content: string): IterationUsage | undefined;
 }
 
-export const DEFAULT_MODEL = "claude-opus-4-6";
+export const DEFAULT_MODEL = "gpt-5.5";
 
 // ---------------------------------------------------------------------------
 // Pi agent provider

@@ -2,7 +2,7 @@
  * Docker sandbox provider — wraps DockerLifecycle into a SandboxProvider.
  *
  * Usage:
- *   import { docker } from "sandcastle/sandboxes/docker";
+ *   import { docker } from "narukami/sandboxes/docker";
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: docker() });
  */
 
@@ -26,6 +26,13 @@ import {
 } from "../SandboxProvider.js";
 import type { MountConfig } from "../MountConfig.js";
 import { defaultImageName, resolveUserMounts } from "../mountUtils.js";
+
+const WRITABLE_RUNTIME_ENV = {
+  GIT_CONFIG_GLOBAL: "/tmp/.gitconfig",
+  COREPACK_HOME: "/tmp/corepack",
+  PNPM_HOME: "/tmp/pnpm",
+  XDG_CACHE_HOME: "/tmp/.cache",
+};
 
 export interface DockerOptions {
   /** Docker image name (default: derived from repo directory name). */
@@ -70,7 +77,7 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
     create: async (
       createOptions: BindMountCreateOptions,
     ): Promise<BindMountSandboxHandle> => {
-      const containerName = `sandcastle-${randomUUID()}`;
+      const containerName = `narukami-${randomUUID()}`;
 
       const worktreePath =
         createOptions.mounts.find(
@@ -92,21 +99,18 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
       const hostGid = process.getgid?.() ?? 1000;
 
       // Start container
+      const env = {
+        ...WRITABLE_RUNTIME_ENV,
+        ...createOptions.env,
+        HOME: createOptions.env.HOME ?? "/home/agent",
+      };
       await Effect.runPromise(
-        startContainer(
-          containerName,
-          imageName,
-          {
-            ...createOptions.env,
-            HOME: "/home/agent",
-          },
-          {
-            volumeMounts,
-            workdir: worktreePath,
-            user: `${hostUid}:${hostGid}`,
-            network: options?.network,
-          },
-        ),
+        startContainer(containerName, imageName, env, {
+          volumeMounts,
+          workdir: worktreePath,
+          user: `${hostUid}:${hostGid}`,
+          network: options?.network,
+        }),
       );
 
       // Set up signal handlers for cleanup

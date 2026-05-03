@@ -21,7 +21,7 @@ const TEMPLATES: TemplateMetadata[] = [
   },
   {
     name: "simple-loop",
-    description: "Picks GitHub issues one by one and closes them",
+    description: "Picks issues one by one and closes them",
   },
   {
     name: "sequential-reviewer",
@@ -50,10 +50,18 @@ export interface AgentEntry {
   readonly name: string;
   readonly label: string;
   readonly defaultModel: string;
+  readonly defaultFactoryOptions?: string;
   readonly factoryImport: string;
   readonly dockerfileTemplate: string;
-  /** Lines to include in the generated `.env.example` for this agent's API key. */
+  /** Lines to include in the generated `.env.example` for this agent's auth setup. */
   readonly envExample: string;
+}
+
+interface PackageManagerConfig {
+  readonly installCommand: string;
+  readonly installCommandLabel: string;
+  readonly installTimeoutMs: number;
+  readonly dockerfileTools: string;
 }
 
 const CLAUDE_CODE_DOCKERFILE = `FROM node:22-bookworm
@@ -65,7 +73,9 @@ RUN apt-get update && apt-get install -y \\
   jq \\
   && rm -rf /var/lib/apt/lists/*
 
-{{BACKLOG_MANAGER_TOOLS}}
+{{ISSUE_PROVIDER_TOOLS}}
+
+{{PACKAGE_MANAGER_TOOLS}}
 
 # Rename the base image's "node" user (UID 1000) to "agent".
 # This keeps UID 1000 so that --userns=keep-id (Podman) and
@@ -81,7 +91,7 @@ ENV PATH="/home/agent/.local/bin:$PATH"
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -96,7 +106,9 @@ RUN apt-get update && apt-get install -y \\
   jq \\
   && rm -rf /var/lib/apt/lists/*
 
-{{BACKLOG_MANAGER_TOOLS}}
+{{ISSUE_PROVIDER_TOOLS}}
+
+{{PACKAGE_MANAGER_TOOLS}}
 
 # Rename the base image's "node" user (UID 1000) to "agent".
 # This keeps UID 1000 so that --userns=keep-id (Podman) and
@@ -110,7 +122,7 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -125,7 +137,9 @@ RUN apt-get update && apt-get install -y \\
   jq \\
   && rm -rf /var/lib/apt/lists/*
 
-{{BACKLOG_MANAGER_TOOLS}}
+{{ISSUE_PROVIDER_TOOLS}}
+
+{{PACKAGE_MANAGER_TOOLS}}
 
 # Rename the base image's "node" user (UID 1000) to "agent".
 # This keeps UID 1000 so that --userns=keep-id (Podman) and
@@ -139,7 +153,7 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -154,7 +168,9 @@ RUN apt-get update && apt-get install -y \\
   jq \\
   && rm -rf /var/lib/apt/lists/*
 
-{{BACKLOG_MANAGER_TOOLS}}
+{{ISSUE_PROVIDER_TOOLS}}
+
+{{PACKAGE_MANAGER_TOOLS}}
 
 # Rename the base image's "node" user (UID 1000) to "agent".
 # This keeps UID 1000 so that --userns=keep-id (Podman) and
@@ -168,7 +184,7 @@ USER agent
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at \${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at \${SANDBOX_REPO_DIR}
 # and overrides the working directory to \${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that \${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -176,13 +192,23 @@ ENTRYPOINT ["sleep", "infinity"]
 
 const AGENT_REGISTRY: AgentEntry[] = [
   {
+    name: "codex",
+    label: "Codex",
+    defaultModel: "gpt-5.5",
+    defaultFactoryOptions: `{ effort: "low" }`,
+    factoryImport: "codex",
+    dockerfileTemplate: CODEX_DOCKERFILE,
+    envExample: `# Codex uses ChatGPT subscription auth by default.
+# Run \`codex login\` on the host, then keep ~/.codex mounted into the sandbox.
+# API key auth is available via Codex CLI, but this scaffold is subscription-first.`,
+  },
+  {
     name: "claude-code",
     label: "Claude Code",
     defaultModel: "claude-opus-4-6",
     factoryImport: "claudeCode",
     dockerfileTemplate: CLAUDE_CODE_DOCKERFILE,
     envExample: `# Anthropic API key
-# If you want to use your Claude subscription instead of an API key, see https://github.com/mattpocock/sandcastle/issues/191
 ANTHROPIC_API_KEY=`,
   },
   {
@@ -193,15 +219,6 @@ ANTHROPIC_API_KEY=`,
     dockerfileTemplate: PI_DOCKERFILE,
     envExample: `# Anthropic API key
 ANTHROPIC_API_KEY=`,
-  },
-  {
-    name: "codex",
-    label: "Codex",
-    defaultModel: "gpt-5.4-mini",
-    factoryImport: "codex",
-    dockerfileTemplate: CODEX_DOCKERFILE,
-    envExample: `# OpenAI API key
-OPENAI_KEY=`,
   },
   {
     name: "opencode",
@@ -217,19 +234,21 @@ OPENCODE_API_KEY=`,
 export const listAgents = (): AgentEntry[] => AGENT_REGISTRY;
 
 // ---------------------------------------------------------------------------
-// Backlog manager registry (internal — not part of public API)
+// Issue provider registry (internal — not part of public API)
 // ---------------------------------------------------------------------------
 
-export interface BacklogManagerEntry {
+export interface IssueProviderEntry {
   readonly name: string;
   readonly label: string;
+  readonly hint?: string;
+  readonly usesShellExpansion?: boolean;
   readonly templateArgs: {
     readonly LIST_TASKS_COMMAND: string;
     readonly VIEW_TASK_COMMAND: string;
     readonly CLOSE_TASK_COMMAND: string;
-    readonly BACKLOG_MANAGER_TOOLS: string;
+    readonly ISSUE_PROVIDER_TOOLS: string;
   };
-  /** Lines to append to `.env.example` for this backlog manager, or empty string if none needed. */
+  /** Lines to append to `.env.example` for this issue provider, or empty string if none needed. */
   readonly envExample: string;
 }
 
@@ -255,15 +274,33 @@ RUN curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/i
 
 RUN corepack enable`;
 
-const BACKLOG_MANAGER_REGISTRY: BacklogManagerEntry[] = [
+const ISSUE_PROVIDER_REGISTRY: IssueProviderEntry[] = [
+  {
+    name: "linear",
+    label: "Linear",
+    hint: "Requires the Linear MCP tool installed and available to the agent",
+    usesShellExpansion: false,
+    templateArgs: {
+      LIST_TASKS_COMMAND:
+        "Use the Linear MCP tool to list actionable open issues. Include each issue identifier, title, description, labels, comments, priority, status, and linked or parent issue context before choosing work.",
+      VIEW_TASK_COMMAND:
+        "Use the Linear MCP tool to read issue <ID>, including description, comments, labels, attachments, and linked or parent issues.",
+      CLOSE_TASK_COMMAND:
+        'Use the Linear MCP tool to comment on <ID> with "Completed by Narukami Shrine" and move it to a completed state.',
+      ISSUE_PROVIDER_TOOLS:
+        "# Linear issue tracking uses the Linear MCP tool configured for the agent",
+    },
+    envExample:
+      "# Linear requires the Linear MCP tool to be installed and available to the agent.\n",
+  },
   {
     name: "github-issues",
     label: "GitHub Issues",
     templateArgs: {
-      LIST_TASKS_COMMAND: `gh issue list --state open --label Sandcastle --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`,
+      LIST_TASKS_COMMAND: `gh issue list --state open --label Narukami Shrine --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`,
       VIEW_TASK_COMMAND: "gh issue view <ID>",
-      CLOSE_TASK_COMMAND: `gh issue close <ID> --comment "Completed by Sandcastle"`,
-      BACKLOG_MANAGER_TOOLS: GITHUB_CLI_TOOLS,
+      CLOSE_TASK_COMMAND: `gh issue close <ID> --comment "Completed by Narukami Shrine"`,
+      ISSUE_PROVIDER_TOOLS: GITHUB_CLI_TOOLS,
     },
     envExample: `# GitHub personal access token
 GH_TOKEN=`,
@@ -274,20 +311,20 @@ GH_TOKEN=`,
     templateArgs: {
       LIST_TASKS_COMMAND: "bd ready --json",
       VIEW_TASK_COMMAND: "bd show <ID>",
-      CLOSE_TASK_COMMAND: `bd close <ID> "Completed by Sandcastle"`,
-      BACKLOG_MANAGER_TOOLS: BEADS_TOOLS,
+      CLOSE_TASK_COMMAND: `bd close <ID> "Completed by Narukami Shrine"`,
+      ISSUE_PROVIDER_TOOLS: BEADS_TOOLS,
     },
     envExample: "",
   },
 ];
 
-export const listBacklogManagers = (): BacklogManagerEntry[] =>
-  BACKLOG_MANAGER_REGISTRY;
+export const listIssueProviders = (): IssueProviderEntry[] =>
+  ISSUE_PROVIDER_REGISTRY;
 
-export const getBacklogManager = (
+export const getIssueProvider = (
   name: string,
-): BacklogManagerEntry | undefined =>
-  BACKLOG_MANAGER_REGISTRY.find((b) => b.name === name);
+): IssueProviderEntry | undefined =>
+  ISSUE_PROVIDER_REGISTRY.find((b) => b.name === name);
 
 export const getAgent = (name: string): AgentEntry | undefined =>
   AGENT_REGISTRY.find((a) => a.name === name);
@@ -299,7 +336,7 @@ export const getAgent = (name: string): AgentEntry | undefined =>
 export interface SandboxProviderEntry {
   readonly name: string;
   readonly label: string;
-  /** Filename written to .sandcastle/ (e.g. "Dockerfile" or "Containerfile") */
+  /** Filename written to .narukami/ (e.g. "Dockerfile" or "Containerfile") */
   readonly containerfileName: string;
   /** CLI namespace for build/remove commands (e.g. "docker" or "podman") */
   readonly cliNamespace: string;
@@ -339,30 +376,30 @@ export function getNextStepsLines(
   if (template === "blank") {
     return [
       "Next steps:",
-      `1. Set the required env vars in .sandcastle/.env (see .sandcastle/.env.example)`,
-      "   If you want to use your Claude subscription instead of an API key, see https://github.com/mattpocock/sandcastle/issues/191",
-      "2. Read and customize .sandcastle/prompt.md to describe what you want the agent to do",
-      `3. Customize .sandcastle/${mainFilename} — it uses the JS API (\`run()\`) to control how the agent runs`,
-      `4. Add "sandcastle": "npx tsx .sandcastle/${mainFilename}" to your package.json scripts`,
-      "5. Run `npm run sandcastle` to start the agent",
+      `1. Set the required env vars in .narukami/.env (see .narukami/.env.example)`,
+      "   For Codex subscription auth, run `codex login` on the host before starting the sandbox",
+      "2. Read and customize .narukami/prompt.md to describe what you want the agent to do",
+      `3. Customize .narukami/${mainFilename} — it uses the JS API (\`run()\`) to control how the agent runs`,
+      `4. Add "narukami": "npx tsx .narukami/${mainFilename}" to your package.json scripts`,
+      "5. Run `npm run narukami` to start the agent",
     ];
   } else {
     const hasReviewer = template.includes("review");
     let step = 1;
     const lines: string[] = [
       "Next steps:",
-      `${step++}. Set the required env vars in .sandcastle/.env (see .sandcastle/.env.example)`,
-      "   If you want to use your Claude subscription instead of an API key, see https://github.com/mattpocock/sandcastle/issues/191",
-      `${step++}. Add "sandcastle": "npx tsx .sandcastle/${mainFilename}" to your package.json scripts`,
-      `${step++}. Templates use \`copyToWorktree: ["node_modules"]\` to copy your host node_modules into the sandbox for fast startup — the \`npm install\` in the onSandboxReady hook is a safety net for platform-specific binaries. Adjust both if you use a different package manager`,
-      `${step++}. Read and customize the prompt files in .sandcastle/ — they shape what the agent does`,
+      `${step++}. Set the required env vars in .narukami/.env (see .narukami/.env.example)`,
+      "   For Codex subscription auth, run `codex login` on the host before starting the sandbox",
+      `${step++}. Add "narukami": "npx tsx .narukami/${mainFilename}" to your package.json scripts`,
+      `${step++}. Templates keep \`copyToWorktree\` empty by default so host node_modules are not copied across platforms; the install hook prepares dependencies inside the sandbox`,
+      `${step++}. Read and customize the prompt files in .narukami/ — they shape what the agent does`,
     ];
     if (hasReviewer) {
       lines.push(
-        `${step++}. Customize .sandcastle/CODING_STANDARDS.md with your project's standards — the reviewer agent loads it during review`,
+        `${step++}. Customize .narukami/CODING_STANDARDS.md with your project's standards — the reviewer agent loads it during review`,
       );
     }
-    lines.push(`${step++}. Run \`npm run sandcastle\` to start the agent`);
+    lines.push(`${step++}. Run \`npm run narukami\` to start the agent`);
     return lines;
   }
 }
@@ -432,7 +469,7 @@ const copyTemplateFiles = (
 /**
  * Replace the agent factory import and call in a scaffolded main.ts.
  *
- * Templates use `claudeCode` as the default factory. When a different agent or
+ * Templates use `codex` as the default factory. When a different agent or
  * model is selected, this function rewrites the import and factory calls.
  */
 const rewriteMainTs = (
@@ -440,6 +477,7 @@ const rewriteMainTs = (
   agent: AgentEntry,
   model: string,
   mainFilename: string,
+  packageManager: PackageManagerConfig,
 ): Effect.Effect<void, Error, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -460,19 +498,31 @@ const rewriteMainTs = (
       content = content.replace(/main\.mts/g, "main.ts");
     }
 
-    // Replace factory function name in imports (e.g. claudeCode → pi)
+    content = applyPackageManagerConfig(content, packageManager);
+
+    // Replace factory function name in imports (e.g. codex → claudeCode)
     // and all factory calls with the correct model.
-    // Templates always use claudeCode as the placeholder factory.
-    content = content.replace(/\bclaudeCode\b/g, agent.factoryImport);
+    // Older templates used claudeCode as the placeholder factory, so accept both.
+    content = content.replace(/\b(?:claudeCode|codex)\b/g, agent.factoryImport);
     // Replace model strings in factory calls: factoryImport("any-model")
     const factoryCallRe = new RegExp(
-      `${agent.factoryImport}\\(["']([^"']+)["']\\)`,
+      `${agent.factoryImport}\\(["'][^"']+["'](?:\\s*,\\s*\\{[^)]*\\})?\\)`,
       "g",
     );
+    const factoryArgs = agent.defaultFactoryOptions
+      ? `"${model}", ${agent.defaultFactoryOptions}`
+      : `"${model}"`;
     content = content.replace(
       factoryCallRe,
-      `${agent.factoryImport}("${model}")`,
+      `${agent.factoryImport}(${factoryArgs})`,
     );
+
+    if (agent.name === "codex") {
+      content = content.replace(
+        /\bdocker\(\)/g,
+        'docker({ mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }] })',
+      );
+    }
 
     yield* fs
       .writeFileString(mainTsPath, content)
@@ -480,7 +530,7 @@ const rewriteMainTs = (
   });
 
 /**
- * When the user opted out of the Sandcastle label, strip ` --label Sandcastle`
+ * When the user opted out of the Narukami Shrine label, strip ` --label Narukami Shrine`
  * from all `.md` files in the scaffolded config directory so that `gh issue list`
  * commands work without a label filter.
  */
@@ -500,7 +550,7 @@ const rewritePromptFiles = (
           const content = yield* fs
             .readFileString(filePath)
             .pipe(Effect.mapError((e) => new Error(e.message)));
-          const updated = content.replace(/ --label Sandcastle/g, "");
+          const updated = content.replace(/ --label Narukami Shrine/g, "");
           if (updated !== content) {
             yield* fs
               .writeFileString(filePath, updated)
@@ -534,12 +584,12 @@ const isTextFile = (filename: string): boolean => {
 };
 
 /**
- * Replace `{{KEY}}` template arguments from the backlog manager's
+ * Replace `{{KEY}}` template arguments from the issue provider's
  * `templateArgs` map in all text files in the scaffolded config directory.
  */
 const substituteTemplateArgs = (
   configDir: string,
-  backlogManager: BacklogManagerEntry,
+  issueProvider: IssueProviderEntry,
 ): Effect.Effect<void, Error, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -555,8 +605,14 @@ const substituteTemplateArgs = (
             .readFileString(filePath)
             .pipe(Effect.mapError((e) => new Error(e.message)));
           const original = content;
+          if (issueProvider.usesShellExpansion === false) {
+            content = content.replace(
+              /!`\{\{LIST_TASKS_COMMAND\}\}`/g,
+              "{{LIST_TASKS_COMMAND}}",
+            );
+          }
           for (const [key, value] of Object.entries(
-            backlogManager.templateArgs,
+            issueProvider.templateArgs,
           )) {
             content = content.replace(
               new RegExp(`\\{\\{${key}\\}\\}`, "g"),
@@ -583,7 +639,7 @@ export interface ScaffoldOptions {
   model: string;
   templateName?: string;
   createLabel?: boolean;
-  backlogManager?: BacklogManagerEntry;
+  issueProvider?: IssueProviderEntry;
   sandboxProvider?: SandboxProviderEntry;
 }
 
@@ -616,6 +672,83 @@ const detectMainFilename = (
     }
   });
 
+const detectPackageManager = (
+  repoDir: string,
+): Effect.Effect<PackageManagerConfig, never, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const exists = (path: string) =>
+      fs.exists(join(repoDir, path)).pipe(Effect.orElseSucceed(() => false));
+    const packageJson = yield* fs
+      .readFileString(join(repoDir, "package.json"))
+      .pipe(Effect.orElseSucceed(() => ""));
+    let packageManager: string | undefined;
+    try {
+      const parsed = JSON.parse(packageJson) as { packageManager?: unknown };
+      if (typeof parsed.packageManager === "string") {
+        packageManager = parsed.packageManager;
+      }
+    } catch {
+      // Ignore malformed package.json and fall back to lockfile detection.
+    }
+
+    const hasPnpmLock = yield* exists("pnpm-lock.yaml");
+    const hasYarnLock = yield* exists("yarn.lock");
+    const hasPackageLock = yield* exists("package-lock.json");
+
+    if (packageManager?.startsWith("pnpm@") || hasPnpmLock) {
+      const version = packageManager?.match(/^pnpm@([^+\s]+)/)?.[1];
+      const pnpmPackage = version ? `pnpm@${version}` : "pnpm";
+      return {
+        installCommand: "pnpm install --config.confirmModulesPurge=false",
+        installCommandLabel: "pnpm install",
+        installTimeoutMs: 600_000,
+        dockerfileTools: `# Install pnpm globally for non-interactive sandbox hooks
+RUN npm install -g ${pnpmPackage}`,
+      };
+    }
+
+    if (packageManager?.startsWith("yarn@") || hasYarnLock) {
+      return {
+        installCommand: "yarn install",
+        installCommandLabel: "yarn install",
+        installTimeoutMs: 600_000,
+        dockerfileTools: `# Enable Yarn via Corepack
+RUN corepack enable`,
+      };
+    }
+
+    if (packageManager?.startsWith("npm@") || hasPackageLock) {
+      return {
+        installCommand: "npm install",
+        installCommandLabel: "npm install",
+        installTimeoutMs: 600_000,
+        dockerfileTools: "",
+      };
+    }
+
+    return {
+      installCommand: "npm install",
+      installCommandLabel: "npm install",
+      installTimeoutMs: 600_000,
+      dockerfileTools: "",
+    };
+  });
+
+const applyPackageManagerConfig = (
+  content: string,
+  packageManager: PackageManagerConfig,
+): string =>
+  content
+    .replace(
+      /onSandboxReady: \[\{ command: "npm install" \}\]/g,
+      `onSandboxReady: [{ command: "${packageManager.installCommand}", timeoutMs: ${packageManager.installTimeoutMs} }]`,
+    )
+    .replace(
+      /npm install ensures/g,
+      `${packageManager.installCommandLabel} ensures`,
+    );
+
 export const scaffold = (
   repoDir: string,
   options: ScaffoldOptions,
@@ -626,11 +759,11 @@ export const scaffold = (
       model,
       templateName = "blank",
       createLabel = true,
-      backlogManager = BACKLOG_MANAGER_REGISTRY[0]!, // default: github-issues
+      issueProvider = ISSUE_PROVIDER_REGISTRY[0]!, // default: linear
       sandboxProvider = SANDBOX_PROVIDER_REGISTRY[0]!, // default: docker
     } = options;
     const fs = yield* FileSystem.FileSystem;
-    const configDir = join(repoDir, ".sandcastle");
+    const configDir = join(repoDir, ".narukami");
 
     const exists = yield* fs
       .exists(configDir)
@@ -638,12 +771,13 @@ export const scaffold = (
     if (exists) {
       yield* Effect.fail(
         new Error(
-          ".sandcastle/ directory already exists. Remove it first if you want to re-initialize.",
+          ".narukami/ directory already exists. Remove it first if you want to re-initialize.",
         ),
       );
     }
 
     const mainFilename = yield* detectMainFilename(repoDir);
+    const packageManager = yield* detectPackageManager(repoDir);
 
     yield* fs
       .makeDirectory(configDir, { recursive: false })
@@ -651,10 +785,10 @@ export const scaffold = (
 
     const templateDir = yield* getTemplateDir(templateName);
 
-    // Build .env.example from agent + backlog manager env blocks
+    // Build .env.example from agent + issue provider env blocks
     const envExampleParts = [agent.envExample];
-    if (backlogManager.envExample) {
-      envExampleParts.push(backlogManager.envExample);
+    if (issueProvider.envExample) {
+      envExampleParts.push(issueProvider.envExample);
     }
     const envExampleContent = envExampleParts.join("\n") + "\n";
 
@@ -663,7 +797,10 @@ export const scaffold = (
         fs
           .writeFileString(
             join(configDir, sandboxProvider.containerfileName),
-            agent.dockerfileTemplate,
+            agent.dockerfileTemplate.replace(
+              "{{PACKAGE_MANAGER_TOOLS}}",
+              packageManager.dockerfileTools,
+            ),
           )
           .pipe(Effect.mapError((e) => new Error(e.message))),
         fs
@@ -678,12 +815,12 @@ export const scaffold = (
     );
 
     // Rewrite main file with the selected agent factory and model
-    yield* rewriteMainTs(configDir, agent, model, mainFilename);
+    yield* rewriteMainTs(configDir, agent, model, mainFilename, packageManager);
 
-    // Replace backlog manager template arguments in all text files (must run before label stripping)
-    yield* substituteTemplateArgs(configDir, backlogManager);
+    // Replace issue provider template arguments in all text files (must run before label stripping)
+    yield* substituteTemplateArgs(configDir, issueProvider);
 
-    // Strip --label Sandcastle from prompt files when the user declined label creation
+    // Strip --label Narukami Shrine from prompt files when the user declined label creation
     if (!createLabel) {
       yield* rewritePromptFiles(configDir);
     }

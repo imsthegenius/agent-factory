@@ -1,30 +1,30 @@
 // Parallel Planner — three-phase orchestration loop
 //
 // This template drives a multi-phase workflow:
-//   Phase 1 (Plan):    An opus agent analyzes open issues, builds a dependency
+//   Phase 1 (Plan):    A planning agent analyzes open issues, builds a dependency
 //                      graph, and outputs a <plan> JSON listing unblocked issues
 //                      with their target branch names.
-//   Phase 2 (Execute): N sonnet agents run in parallel via Promise.allSettled,
+//   Phase 2 (Execute): N implementation agents run in parallel via Promise.allSettled,
 //                      each working a single issue on its own branch.
-//   Phase 3 (Merge):   A sonnet agent merges all branches that produced commits.
+//   Phase 3 (Merge):   A merge agent merges all branches that produced commits.
 //
 // The outer loop repeats up to MAX_ITERATIONS times so that newly unblocked
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .sandcastle/main.mts
+//   npx tsx .narukami/main.mts
 // Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
 
-import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import * as narukami from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 // Maximum number of plan→execute→merge cycles before stopping.
-// Raise this if your backlog is large; lower it for a quick smoke-test run.
+// Raise this if your issue queue is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
@@ -33,10 +33,9 @@ const hooks = {
   sandbox: { onSandboxReady: [{ command: "npm install" }] },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
+// Keep this empty by default. Copying host node_modules into a Linux sandbox
+// can break native packages such as esbuild when the host is macOS/Windows.
+const copyToWorktree: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -48,22 +47,22 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 1: Plan
   //
-  // The planning agent (opus, for deeper reasoning) reads the open issue list,
+  // The planning agent reads the open issue list,
   // builds a dependency graph, and selects the issues that can be worked in
   // parallel right now (i.e., no blocking dependencies on other open issues).
   //
   // It outputs a <plan> JSON block — we parse that to drive Phase 2.
   // -------------------------------------------------------------------------
-  const plan = await sandcastle.run({
+  const plan = await narukami.run({
     hooks,
     sandbox: docker(),
     name: "planner",
     // One iteration is enough: the planner just needs to read and reason,
     // not write code.
     maxIterations: 1,
-    // Opus for planning: dependency analysis benefits from deeper reasoning.
-    agent: sandcastle.claudeCode("claude-opus-4-6"),
-    promptFile: "./.sandcastle/plan-prompt.md",
+    // The scaffold rewrites this placeholder to your selected planning agent.
+    agent: narukami.claudeCode("claude-opus-4-6"),
+    promptFile: "./.narukami/plan-prompt.md",
   });
 
   // Extract the <plan>…</plan> block from the agent's stdout.
@@ -95,7 +94,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 2: Execute
   //
-  // Spawn one sonnet agent per issue, all running concurrently.
+  // Spawn one implementation agent per issue, all running concurrently.
   // Each agent works on its own branch so there are no conflicts during
   // execution — merging happens in Phase 3.
   //
@@ -103,7 +102,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   const settled = await Promise.allSettled(
     issues.map((issue) =>
-      sandcastle.run({
+      narukami.run({
         hooks,
         copyToWorktree,
         // Each agent starts on its own branch via branchStrategy on run().
@@ -112,9 +111,9 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         name: "implementer",
         // Give each agent plenty of room to implement and iterate on tests.
         maxIterations: 100,
-        // Sonnet for execution: fast and capable enough for typical issue work.
-        agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-        promptFile: "./.sandcastle/implement-prompt.md",
+        // The scaffold rewrites this placeholder to your selected implementation agent.
+        agent: narukami.claudeCode("claude-sonnet-4-6"),
+        promptFile: "./.narukami/implement-prompt.md",
         // Prompt arguments substitute {{TASK_ID}}, {{ISSUE_TITLE}},
         // and {{BRANCH}} placeholders in implement-prompt.md before the
         // agent sees the prompt.
@@ -145,7 +144,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         entry,
       ): entry is {
         outcome: PromiseFulfilledResult<
-          Awaited<ReturnType<typeof sandcastle.run>>
+          Awaited<ReturnType<typeof narukami.run>>
         >;
         issue: (typeof issues)[number];
       } =>
@@ -172,27 +171,25 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 3: Merge
   //
-  // One sonnet agent merges all completed branches into the current branch,
+  // One agent merges all completed branches into the current branch,
   // resolving any conflicts and running tests to confirm everything still works.
   //
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
-  await sandcastle.run({
+  await narukami.run({
     hooks,
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
-    // Sonnet is sufficient for merge conflict resolution.
-    agent: sandcastle.claudeCode("claude-sonnet-4-6"),
-    promptFile: "./.sandcastle/merge-prompt.md",
+    // The scaffold rewrites this placeholder to your selected merge agent.
+    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    promptFile: "./.narukami/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
       // A markdown list of issue IDs and titles, one per line.
-      ISSUES: completedIssues
-        .map((i) => `- ${i.id}: ${i.title}`)
-        .join("\n"),
+      ISSUES: completedIssues.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
     },
   });
 

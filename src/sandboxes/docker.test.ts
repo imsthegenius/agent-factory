@@ -116,6 +116,66 @@ describe("docker()", () => {
     expect(provider.env).toEqual({});
   });
 
+  it("starts containers with writable runtime env defaults", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = docker();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const runCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "docker" && Array.isArray(args) && args[0] === "run",
+    );
+    expect(runCall).toBeDefined();
+    const runArgs = runCall![1] as string[];
+    expect(runArgs).toContain("GIT_CONFIG_GLOBAL=/tmp/.gitconfig");
+    expect(runArgs).toContain("COREPACK_HOME=/tmp/corepack");
+    expect(runArgs).toContain("PNPM_HOME=/tmp/pnpm");
+    expect(runArgs).toContain("XDG_CACHE_HOME=/tmp/.cache");
+    expect(runArgs).toContain("HOME=/home/agent");
+
+    await handle.close();
+  });
+
+  it("lets explicit HOME override the sandbox home while keeping runtime dirs writable", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = docker();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: { HOME: "/tmp/custom-home" },
+    });
+
+    const runCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "docker" && Array.isArray(args) && args[0] === "run",
+    );
+    const runArgs = runCall![1] as string[];
+    expect(runArgs).toContain("HOME=/tmp/custom-home");
+    expect(runArgs).toContain("GIT_CONFIG_GLOBAL=/tmp/.gitconfig");
+
+    await handle.close();
+  });
+
   it("accepts a network option as a string", () => {
     const provider = docker({ network: "my-network" });
     expect(provider.tag).toBe("bind-mount");
@@ -157,7 +217,7 @@ describe("docker()", () => {
     const cpArgs = cpCall![1] as string[];
     expect(cpArgs[0]).toBe("cp");
     expect(cpArgs[1]).toBe("/host/file.txt");
-    expect(cpArgs[2]).toMatch(/^sandcastle-.*:\/sandbox\/file\.txt$/);
+    expect(cpArgs[2]).toMatch(/^narukami-.*:\/sandbox\/file\.txt$/);
 
     await handle.close();
   });
@@ -192,7 +252,7 @@ describe("docker()", () => {
     expect(cpCall).toBeDefined();
     const cpArgs = cpCall![1] as string[];
     expect(cpArgs[0]).toBe("cp");
-    expect(cpArgs[1]).toMatch(/^sandcastle-.*:\/sandbox\/output\.txt$/);
+    expect(cpArgs[1]).toMatch(/^narukami-.*:\/sandbox\/output\.txt$/);
     expect(cpArgs[2]).toBe("/host/output.txt");
 
     await handle.close();

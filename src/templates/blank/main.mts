@@ -1,12 +1,12 @@
-import { run, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { run, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 // Blank template: customize this to build your own orchestration.
-// Run this with: npx tsx .sandcastle/main.mts
-// Or add to package.json scripts: "sandcastle": "npx tsx .sandcastle/main.mts"
+// Run this with: npx tsx .narukami/main.mts
+// Or add to package.json scripts: "narukami": "npx tsx .narukami/main.mts"
 
 await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: docker(),
-  promptFile: "./.sandcastle/prompt.md",
+  promptFile: "./.narukami/prompt.md",
 });

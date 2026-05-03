@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
@@ -83,7 +83,7 @@ describe("interactive()", () => {
 
   beforeEach(() => {
     originalCwd = process.cwd();
-    hostDir = mkdtempSync(join(tmpdir(), "sandcastle-interactive-test-"));
+    hostDir = mkdtempSync(join(tmpdir(), "narukami-interactive-test-"));
     // Initialize a git repo
     execSync("git init", { cwd: hostDir, stdio: "ignore" });
     execSync('git config user.email "test@test.com"', {
@@ -695,7 +695,7 @@ describe("interactive()", () => {
 
   it("uses cwd as host repo directory for worktree placement", async () => {
     // Create a second git repo in a separate temp dir
-    const otherRepo = mkdtempSync(join(tmpdir(), "sandcastle-cwd-test-"));
+    const otherRepo = mkdtempSync(join(tmpdir(), "narukami-cwd-test-"));
     execSync("git init", { cwd: otherRepo, stdio: "ignore" });
     execSync('git config user.email "test@test.com"', {
       cwd: otherRepo,
@@ -724,9 +724,11 @@ describe("interactive()", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    // The worktree should be under the other repo's .sandcastle/worktrees/ dir
+    // The worktree should be under the other repo's .narukami/worktrees/ dir
     expect(worktreeCwd).toBeDefined();
-    expect(worktreeCwd!.startsWith(otherRepo)).toBe(true);
+    expect(realpathSync(worktreeCwd!).startsWith(realpathSync(otherRepo))).toBe(
+      true,
+    );
   });
 
   it("without cwd behaves identically to process.cwd()", async () => {
@@ -747,7 +749,9 @@ describe("interactive()", () => {
     expect(result.exitCode).toBe(0);
     // The worktree should be under process.cwd() (which is hostDir)
     expect(worktreeCwd).toBeDefined();
-    expect(worktreeCwd!.startsWith(hostDir)).toBe(true);
+    expect(realpathSync(worktreeCwd!).startsWith(realpathSync(hostDir))).toBe(
+      true,
+    );
   });
 
   it("copies files to worktree with copyToWorktree", async () => {

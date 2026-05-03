@@ -58,11 +58,11 @@ export interface CreateSandboxOptions {
    * already exists. Defaults to `HEAD`.
    */
   readonly baseBranch?: string;
-  /** Sandbox provider (e.g. docker({ imageName: "sandcastle:myrepo" })). */
+  /** Sandbox provider (e.g. docker({ imageName: "narukami:myrepo" })). */
   readonly sandbox: SandboxProvider;
   /**
    * Host repo directory. Replaces `process.cwd()` as the anchor for
-   * `.sandcastle/worktrees/`, `.sandcastle/.env`, and git operations.
+   * `.narukami/worktrees/`, `.narukami/.env`, and git operations.
    *
    * - Relative paths are resolved against `process.cwd()`.
    * - Absolute paths are used as-is.
@@ -191,6 +191,24 @@ interface SandboxHandleContext {
   readonly applyToHost: () => Effect.Effect<void, any>;
 }
 
+const createIsolatedApplyToHost = (
+  hostWorktreePath: string,
+  providerHandle: IsolatedSandboxHandle | undefined,
+): (() => Effect.Effect<void, any>) => {
+  if (!providerHandle) {
+    return () => Effect.void;
+  }
+
+  let lastSyncedSandboxHead: string | undefined;
+  return () =>
+    syncOut(hostWorktreePath, providerHandle, {
+      baseRef: lastSyncedSandboxHead,
+      onSyncedHead: (head) => {
+        lastSyncedSandboxHead = head;
+      },
+    });
+};
+
 /**
  * @internal Builds a Sandbox handle with run() and interactive() methods.
  * The close callback controls teardown behavior — top-level createSandbox()
@@ -267,7 +285,7 @@ const buildSandboxHandle = (
         type: "file",
         path: join(
           hostRepoDir,
-          ".sandcastle",
+          ".narukami",
           "logs",
           buildLogFilename(branch, undefined, runOptions.name),
         ),
@@ -320,7 +338,7 @@ const buildSandboxHandle = (
         result = await Effect.runPromise(
           Effect.gen(function* () {
             const display = yield* Display;
-            yield* display.intro(runOptions.name ?? "sandcastle");
+            yield* display.intro(runOptions.name ?? "narukami");
 
             return yield* orchestrate({
               hostRepoDir,
@@ -527,7 +545,12 @@ export const createSandboxFromWorktree = async (
     options.sandbox.tag !== "isolated"
   ) {
     await Effect.runPromise(
-      copyToWorktree(options.copyToWorktree, hostRepoDir, worktreePath, options.timeouts?.copyToWorktreeMs),
+      copyToWorktree(
+        options.copyToWorktree,
+        hostRepoDir,
+        worktreePath,
+        options.timeouts?.copyToWorktreeMs,
+      ),
     );
   }
 
@@ -621,7 +644,10 @@ export const createSandboxFromWorktree = async (
   // 4. Build applyToHost callback
   const applyToHost =
     isIsolated && providerHandle
-      ? () => syncOut(worktreePath, providerHandle as IsolatedSandboxHandle)
+      ? createIsolatedApplyToHost(
+          worktreePath,
+          providerHandle as IsolatedSandboxHandle,
+        )
       : () => Effect.void;
 
   // 5. Build and return sandbox handle — container-only close (worktree owns worktree)
@@ -681,7 +707,12 @@ export const createSandbox = async (
     options.sandbox.tag !== "isolated"
   ) {
     await Effect.runPromise(
-      copyToWorktree(options.copyToWorktree, hostRepoDir, worktreePath, options.timeouts?.copyToWorktreeMs),
+      copyToWorktree(
+        options.copyToWorktree,
+        hostRepoDir,
+        worktreePath,
+        options.timeouts?.copyToWorktreeMs,
+      ),
     );
   }
 
@@ -785,7 +816,10 @@ export const createSandbox = async (
   // 5. Build applyToHost callback (once, reused across runs)
   const applyToHost =
     isIsolated && providerHandle
-      ? () => syncOut(worktreePath, providerHandle as IsolatedSandboxHandle)
+      ? createIsolatedApplyToHost(
+          worktreePath,
+          providerHandle as IsolatedSandboxHandle,
+        )
       : () => Effect.void;
 
   // 6. Set up signal handlers

@@ -335,7 +335,7 @@ export const WorktreeDockerSandboxFactory = {
           Effect.catchAll((e) =>
             Effect.sync(() => {
               console.error(
-                "[sandcastle] Warning: failed to prune stale worktrees:",
+                "[narukami] Warning: failed to prune stale worktrees:",
                 e.message,
               );
             }),
@@ -504,7 +504,12 @@ export const WorktreeDockerSandboxFactory = {
                 (copyPaths && copyPaths.length > 0
                   ? display.spinner(
                       "Copying to worktree",
-                      copyToWorktree(copyPaths, hostRepoDir, worktreeInfo.path, timeouts?.copyToWorktreeMs),
+                      copyToWorktree(
+                        copyPaths,
+                        hostRepoDir,
+                        worktreeInfo.path,
+                        timeouts?.copyToWorktreeMs,
+                      ),
                     )
                   : Effect.succeed(undefined)
                 ).pipe(Effect.map(() => worktreeInfo)),

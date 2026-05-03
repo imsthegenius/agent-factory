@@ -1,25 +1,19 @@
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://res.cloudinary.com/total-typescript/image/upload/v1775033787/readme-sandcastle-ondark_2x.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://res.cloudinary.com/total-typescript/image/upload/v1775033787/readme-sandcastle-onlight_2x.png">
-    <img alt="Sandcastle" src="https://res.cloudinary.com/total-typescript/image/upload/v1775033787/readme-sandcastle-onlight_2x.png" height="200" style="margin-bottom: 20px;">
-  </picture>
-</div>
+# Narukami Shrine
 
-## What Is Sandcastle?
+## What Is Narukami Shrine?
 
 A TypeScript library for orchestrating AI coding agents in isolated sandboxes:
 
-1. You invoke agents with a single `sandcastle.run()`.
-2. Sandcastle handles sandboxing the agent with a configurable branch strategy.
+1. You invoke agents with a single `narukami.run()`.
+2. Narukami Shrine handles sandboxing the agent with a configurable branch strategy.
 3. The commits made on the branches get merged back.
 
-Sandcastle is provider-agnostic — it ships with built-in providers for Docker, Podman, and Vercel, and you can create your own. Great for parallelizing multiple AFK agents, creating review pipelines, or even just orchestrating your own agents.
+Narukami Shrine is provider-agnostic — it ships with built-in providers for Docker, Podman, and Vercel, and you can create your own. Great for parallelizing multiple AFK agents, creating review pipelines, or even just orchestrating your own agents.
 
 ## Prerequisites
 
 - [Git](https://git-scm.com/)
-- A sandbox provider — Sandcastle needs an isolated environment to run agents in. Built-in options:
+- A sandbox provider — Narukami Shrine needs an isolated environment to run agents in. Built-in options:
   - [Docker Desktop](https://www.docker.com/) — most common for local development
   - [Podman](https://podman.io/) — rootless alternative to Docker
   - [Vercel](https://vercel.com/) — cloud-based Firecracker microVMs via `@vercel/sandbox`
@@ -30,68 +24,89 @@ Sandcastle is provider-agnostic — it ships with built-in providers for Docker,
 1. Install the package:
 
 ```bash
-npm install --save-dev @ai-hero/sandcastle
+npm install --save-dev @yae-tools/narukami-shrine
 ```
 
-2. Run `sandcastle init`. This scaffolds a `.sandcastle` directory with all the files needed.
+2. Run `narukami init`. This scaffolds a `.narukami` directory with all the files needed.
 
 ```bash
-npx sandcastle init
+npx narukami init
 ```
 
-3. Edit `.sandcastle/.env` and fill in your default values for `ANTHROPIC_API_KEY`. If you want to use your Claude subscription instead of an API key, see [#191](https://github.com/mattpocock/sandcastle/issues/191).
+3. Run `codex login` on the host to use your ChatGPT subscription. The default Codex scaffold mounts `~/.codex` into the sandbox so the Codex CLI can reuse that login. Then copy `.narukami/.env.example` if your selected issue provider needs any local env values.
 
 ```bash
-cp .sandcastle/.env.example .sandcastle/.env
+cp .narukami/.env.example .narukami/.env
 ```
 
-4. Run the `.sandcastle/main.ts` (or `main.mts`) file with `npx tsx`
+4. Run the `.narukami/main.ts` (or `main.mts`) file with `npx tsx`
 
 ```bash
-npx tsx .sandcastle/main.ts
+npx tsx .narukami/main.ts
 ```
 
 ```typescript
 // 3. Run the agent via the JS API
-import { run, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { run, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 await run({
-  agent: claudeCode("claude-opus-4-6"),
-  sandbox: docker(), // or podman(), vercel(), or your own provider
-  promptFile: ".sandcastle/prompt.md",
+  agent: codex("gpt-5.5", { effort: "low" }),
+  sandbox: docker({
+    mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }],
+  }), // or podman(), vercel(), or your own provider
+  promptFile: ".narukami/prompt.md",
 });
 ```
 
+## Differences From Upstream
+
+Narukami Shrine is still recognizably Sandcastle at its core: it creates an isolated worktree or sandbox, runs an AI coding agent, collects commits, and merges or preserves the result according to the branch strategy. This fork changes the defaults and the operational edges to fit Codex subscription workflows, Linear-tracked task queues, and larger pnpm monorepos.
+
+Beyond the Narukami branding, Codex-first defaults, and Linear-first issue provider, the major differences are:
+
+- **Package-manager-aware scaffolding** — generated Dockerfiles and setup hooks understand `pnpm`, install a pinned pnpm version when needed, use non-interactive install flags, and allow longer setup hooks for large workspaces.
+- **No host `node_modules` copy by default** — templates avoid copying host dependencies into sandbox worktrees, which prevents native binary mismatches such as macOS `esbuild` packages being reused inside Linux containers.
+- **Hardened Docker/Podman runtime env** — default sandbox env writes Git, Corepack, pnpm, and XDG cache/config files under `/tmp`, avoiding common permission failures from mounted home directories and container users.
+- **Better sandbox failure output** — lifecycle hook failures include useful stdout/stderr context, making dependency, quality-gate, and native-binary failures easier to diagnose.
+- **More reliable worktree handling** — worktree paths are canonicalized before reuse checks, which helps on macOS path aliases such as `/var` versus `/private/var`.
+- **Issue provider terminology** — the init flow and internal registry use issue-provider language instead of backlog-manager language, so Linear, GitHub Issues, Beads, and future trackers fit the same abstraction.
+- **Narukami runtime layout** — generated projects use `.narukami/` for config, logs, worktrees, env examples, and prompts, with `narukami:<repo>` image names and `narukami/...` branch naming.
+- **CLI surface cleanup** — the package exposes `narukami` and `narukami-shrine` commands only; the old `sandcastle` compatibility alias is intentionally not included.
+- **Build dependency correctness** — optional sandbox integrations such as Daytona have the type/runtime dependencies needed for this package to build cleanly from source.
+- **Expanded tests and docs** — tests and documentation cover the new defaults, issue-provider setup, Docker env behavior, pnpm scaffold behavior, worktree canonicalization, and Narukami naming.
+
 ## Sandbox Providers
 
-Sandcastle uses a `SandboxProvider` to create isolated environments. The `sandbox` option on `run()` and `createSandbox()` accepts any provider. A no-sandbox option is also available for `interactive()` and `wt.interactive()`. Built-in providers:
+Narukami Shrine uses a `SandboxProvider` to create isolated environments. The `sandbox` option on `run()` and `createSandbox()` accepts any provider. A no-sandbox option is also available for `interactive()` and `wt.interactive()`. Built-in providers:
 
-| Provider   | Import path                                | Type       | Accepted by                                   |
-| ---------- | ------------------------------------------ | ---------- | --------------------------------------------- |
-| Docker     | `@ai-hero/sandcastle/sandboxes/docker`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
-| Podman     | `@ai-hero/sandcastle/sandboxes/podman`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
-| Vercel     | `@ai-hero/sandcastle/sandboxes/vercel`     | Isolated   | `run()`, `createSandbox()`, `interactive()`   |
-| No-sandbox | `@ai-hero/sandcastle/sandboxes/no-sandbox` | None       | `interactive()`, `wt.interactive()` (default) |
+| Provider   | Import path                                       | Type       | Accepted by                                   |
+| ---------- | ------------------------------------------------- | ---------- | --------------------------------------------- |
+| Docker     | `@yae-tools/narukami-shrine/sandboxes/docker`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
+| Podman     | `@yae-tools/narukami-shrine/sandboxes/podman`     | Bind-mount | `run()`, `createSandbox()`, `interactive()`   |
+| Vercel     | `@yae-tools/narukami-shrine/sandboxes/vercel`     | Isolated   | `run()`, `createSandbox()`, `interactive()`   |
+| No-sandbox | `@yae-tools/narukami-shrine/sandboxes/no-sandbox` | None       | `interactive()`, `wt.interactive()` (default) |
 
 Worktree methods (`wt.run()`, `wt.interactive()`, `wt.createSandbox()`) accept the same providers as their top-level counterparts. `wt.interactive()` defaults to `noSandbox()` when no sandbox is specified.
 
 ```typescript
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { vercel } from "@ai-hero/sandcastle/sandboxes/vercel";
-import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import { podman } from "@yae-tools/narukami-shrine/sandboxes/podman";
+import { vercel } from "@yae-tools/narukami-shrine/sandboxes/vercel";
+import { noSandbox } from "@yae-tools/narukami-shrine/sandboxes/no-sandbox";
 
 // Docker, Podman, and Vercel are interchangeable in run() and createSandbox():
 await run({
-  agent: claudeCode("claude-opus-4-6"),
-  sandbox: docker(),
+  agent: codex("gpt-5.5", { effort: "low" }),
+  sandbox: docker({
+    mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }],
+  }),
   prompt: "...",
 });
 
 // No-sandbox runs the agent directly on the host — interactive() only:
 await interactive({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: noSandbox(),
   prompt: "...", // optional — omit to launch the TUI with no initial prompt
   cwd: "/path/to/other-repo", // optional — defaults to process.cwd()
@@ -102,16 +117,18 @@ You can also [create your own provider](#custom-sandbox-providers) using `create
 
 ## API
 
-Sandcastle exports a programmatic `run()` function for use in scripts, CI pipelines, or custom tooling. The examples below use `docker()`, but any `SandboxProvider` works in its place.
+Narukami Shrine exports a programmatic `run()` function for use in scripts, CI pipelines, or custom tooling. The examples below use `docker()`, but any `SandboxProvider` works in its place.
 
 ```typescript
-import { run, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { run, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 const result = await run({
-  agent: claudeCode("claude-opus-4-6"),
-  sandbox: docker(),
-  promptFile: ".sandcastle/prompt.md",
+  agent: codex("gpt-5.5", { effort: "low" }),
+  sandbox: docker({
+    mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }],
+  }),
+  promptFile: ".narukami/prompt.md",
 });
 
 console.log(result.iterations.length); // number of iterations executed
@@ -123,22 +140,23 @@ console.log(result.branch); // target branch name
 ### All options
 
 ```typescript
-import { run, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { run, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 const result = await run({
-  // Agent provider — required. Pass a model string to claudeCode().
+  // Agent provider — required. Codex is the default focus.
   // Optional second arg for provider-specific options like effort level.
-  agent: claudeCode("claude-opus-4-6", { effort: "high" }),
+  agent: codex("gpt-5.5", { effort: "low" }),
 
   // Sandbox provider — required. Any SandboxProvider works (docker, podman, vercel, or custom).
   // Provider-specific config (like imageName, mounts) lives inside the provider factory call.
   sandbox: docker({
-    imageName: "sandcastle:local",
+    imageName: "narukami:local",
     // Optional: mount host directories into the sandbox (e.g. package manager caches)
     // hostPath supports absolute, tilde-expanded (~), and relative paths (resolved from cwd).
     // sandboxPath supports absolute and relative paths (resolved from the sandbox repo directory).
     mounts: [
+      { hostPath: "~/.codex", sandboxPath: "~/.codex" },
       { hostPath: "~/.npm", sandboxPath: "/home/agent/.npm", readonly: true },
       { hostPath: "data", sandboxPath: "data" }, // mounts <cwd>/data → <sandbox-repo>/data
     ],
@@ -149,7 +167,7 @@ const result = await run({
   }),
 
   // Host repo directory — replaces process.cwd() as the anchor for
-  // .sandcastle/ artifacts (worktrees, logs, env, patches) and git operations.
+  // .narukami/ artifacts (worktrees, logs, env, patches) and git operations.
   // Relative paths resolve against process.cwd(). Defaults to process.cwd().
   cwd: "../other-repo",
 
@@ -159,7 +177,7 @@ const result = await run({
 
   // Prompt source — provide one of these, not both.
   // Note: promptFile resolves against process.cwd(), NOT cwd.
-  promptFile: ".sandcastle/prompt.md", // path to a prompt file
+  promptFile: ".narukami/prompt.md", // path to a prompt file
   // prompt: "Fix issue #42 in this repo", // OR an inline prompt string
 
   // Values substituted for {{KEY}} placeholders in the prompt.
@@ -194,10 +212,10 @@ const result = await run({
     copyToWorktreeMs: 120_000, // default: 60_000
   },
 
-  // How to record progress. Default: write to a file under .sandcastle/logs/
+  // How to record progress. Default: write to a file under .narukami/logs/
   logging: {
     type: "file",
-    path: ".sandcastle/logs/my-run.log",
+    path: ".narukami/logs/my-run.log",
     // Optional: forward the agent's output stream to your own observability system.
     // Fires for each text chunk and tool call the agent produces. Errors thrown
     // by the callback are swallowed so a broken forwarder cannot kill the run.
@@ -231,8 +249,8 @@ Use `run()` instead when you only need a single one-shot invocation — it handl
 #### Basic single-run usage
 
 ```typescript
-import { createSandbox, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { createSandbox, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 await using sandbox = await createSandbox({
   branch: "agent/fix-42",
@@ -240,7 +258,7 @@ await using sandbox = await createSandbox({
 });
 
 const result = await sandbox.run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   prompt: "Fix issue #42 in this repo.",
 });
 
@@ -250,8 +268,8 @@ console.log(result.commits); // [{ sha: "abc123" }]
 #### Multi-run implement-then-review
 
 ```typescript
-import { createSandbox, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { createSandbox, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 await using sandbox = await createSandbox({
   branch: "agent/fix-42",
@@ -261,14 +279,14 @@ await using sandbox = await createSandbox({
 
 // Step 1: implement
 const implResult = await sandbox.run({
-  agent: claudeCode("claude-opus-4-6"),
-  promptFile: ".sandcastle/implement.md",
+  agent: codex("gpt-5.5", { effort: "low" }),
+  promptFile: ".narukami/implement.md",
   maxIterations: 5,
 });
 
 // Step 2: review on the same branch, same container
 const reviewResult = await sandbox.run({
-  agent: claudeCode("claude-sonnet-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   prompt: "Review the changes and fix any issues.",
 });
 ```
@@ -317,18 +335,18 @@ if (closeResult.preservedWorktreePath) {
 
 #### `SandboxRunOptions`
 
-| Option               | Type               | Default                       | Description                                                         |
-| -------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------- |
-| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-6")`) |
-| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                |
-| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)              |
-| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                |
-| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                           |
-| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early          |
-| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event         |
-| `name`               | string             | —                             | Display name for the run                                            |
-| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                    |
-| `signal`             | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward         |
+| Option               | Type               | Default                       | Description                                                               |
+| -------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------------- |
+| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `codex("gpt-5.5", { effort: "low" })`) |
+| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                      |
+| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                    |
+| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                      |
+| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                                 |
+| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String(s) the agent emits to stop the iteration loop early                |
+| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event               |
+| `name`               | string             | —                             | Display name for the run                                                  |
+| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                          |
+| `signal`             | AbortSignal        | —                             | Cancels the run when aborted; handle stays usable afterward               |
 
 #### `SandboxRunResult`
 
@@ -355,7 +373,7 @@ Only `branch` and `merge-to-head` strategies are accepted; `head` is a compile-t
 Pass `cwd` to target a repo other than `process.cwd()`. Relative paths resolve against `process.cwd()`; absolute paths pass through. A `CwdError` is thrown if the path does not exist or is not a directory.
 
 ```typescript
-import { createWorktree } from "@ai-hero/sandcastle";
+import { createWorktree } from "@yae-tools/narukami-shrine";
 
 await using wt = await createWorktree({
   branchStrategy: { type: "branch", branch: "agent/fix-42" },
@@ -368,21 +386,21 @@ console.log(wt.branch); // "agent/fix-42"
 
 // Run an interactive session in the worktree (defaults to noSandbox)
 await wt.interactive({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   prompt: "Explore the codebase and understand the bug.",
 });
 
 // Run an AFK agent in the worktree (sandbox is required)
 const result = await wt.run({
-  agent: claudeCode("claude-opus-4-6"),
-  sandbox: docker({ imageName: "sandcastle:myrepo" }),
+  agent: codex("gpt-5.5", { effort: "low" }),
+  sandbox: docker({ imageName: "narukami:myrepo" }),
   prompt: "Fix issue #42.",
   maxIterations: 3,
 });
 console.log(result.commits); // commits made during the run
 
 // Create a long-lived sandbox from the worktree
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 await using sandbox = await wt.createSandbox({
   sandbox: docker(),
@@ -474,10 +492,10 @@ await sandbox.close();
 
 ## How it works
 
-Sandcastle uses a **branch strategy** configured on the sandbox provider to control how the agent's changes relate to branches. There are three strategies:
+Narukami Shrine uses a **branch strategy** configured on the sandbox provider to control how the agent's changes relate to branches. There are three strategies:
 
 - **Head** (`{ type: "head" }`) — The agent writes directly to the host working directory. No worktree, no branch indirection. This is the default for bind-mount providers like `docker()`.
-- **Merge-to-head** (`{ type: "merge-to-head" }`) — Sandcastle creates a temporary branch in a git worktree. The agent works on the temp branch, and changes are merged back to HEAD when done. The temp branch is cleaned up after merge.
+- **Merge-to-head** (`{ type: "merge-to-head" }`) — Narukami Shrine creates a temporary branch in a git worktree. The agent works on the temp branch, and changes are merged back to HEAD when done. The temp branch is cleaned up after merge.
 - **Branch** (`{ type: "branch", branch: "foo" }`) — Commits land on an explicitly named branch in a git worktree.
 
 For bind-mount providers (like Docker), the worktree directory is bind-mounted into the container — the agent writes directly to the host filesystem through the mount, so no sync is needed.
@@ -486,7 +504,7 @@ From your point of view, you just configure `branchStrategy: { type: 'branch', b
 
 ## Prompts
 
-Sandcastle uses a flexible prompt system. You write the prompt, and the engine executes it — no opinions about workflow, task management, or context sources are imposed.
+Narukami Shrine uses a flexible prompt system. You write the prompt, and the engine executes it — no opinions about workflow, task management, or context sources are imposed.
 
 ### Prompt resolution
 
@@ -501,7 +519,7 @@ You must provide exactly one of:
 
 The substitution and expansion features below apply **only** to prompts sourced from `promptFile`.
 
-> **Convention**: `sandcastle init` scaffolds `.sandcastle/prompt.md` and all templates explicitly reference it via `promptFile: ".sandcastle/prompt.md"`. This is a convention, not an automatic fallback — Sandcastle does not read `.sandcastle/prompt.md` unless you pass it as `promptFile`.
+> **Convention**: `narukami init` scaffolds `.narukami/prompt.md` and all templates explicitly reference it via `promptFile: ".narukami/prompt.md"`. This is a convention, not an automatic fallback — Narukami Shrine does not read `.narukami/prompt.md` unless you pass it as `promptFile`.
 
 ### Dynamic context with `` !`command` ``
 
@@ -512,7 +530,7 @@ Commands run **inside the sandbox** after `sandbox.onSandboxReady` hooks complet
 ```markdown
 # Open issues
 
-!`gh issue list --state open --label Sandcastle --json number,title,body,comments,labels --limit 20`
+!`gh issue list --state open --label Narukami Shrine --json number,title,body,comments,labels --limit 20`
 
 # Recent commits
 
@@ -526,7 +544,7 @@ If any command exits with a non-zero code, the run fails immediately with an err
 Use `{{KEY}}` placeholders in your prompt to inject values from the `promptArgs` option. This is useful for reusing the same prompt file across multiple runs with different parameters.
 
 ```typescript
-import { run } from "@ai-hero/sandcastle";
+import { run } from "@yae-tools/narukami-shrine";
 
 await run({
   promptFile: "./my-prompt.md",
@@ -552,7 +570,7 @@ A `{{KEY}}` placeholder with no matching prompt argument is an error. Unused pro
 
 ### Built-in prompt arguments
 
-Sandcastle automatically injects two built-in prompt arguments into every prompt:
+Narukami Shrine automatically injects two built-in prompt arguments into every prompt:
 
 | Placeholder         | Value                                                             |
 | ------------------- | ----------------------------------------------------------------- |
@@ -592,98 +610,98 @@ Tell the agent to output your chosen string(s) in the prompt, and the orchestrat
 
 ### Templates
 
-`sandcastle init` prompts you to choose a sandbox provider (Docker or Podman), a backlog manager (GitHub Issues or Beads), and a template, which scaffolds a ready-to-use prompt and `main.mts` suited to a specific workflow. If your project's `package.json` has `"type": "module"`, the file will be named `main.ts` instead. Five templates are available:
+`narukami init` prompts you to choose a sandbox provider (Docker or Podman), an issue provider (Linear, GitHub Issues, or Beads), and a template, which scaffolds a ready-to-use prompt and `main.mts` suited to a specific workflow. Linear requires the Linear MCP tool to be installed and available to the agent. If your project's `package.json` has `"type": "module"`, the file will be named `main.ts` instead. Five templates are available:
 
 | Template                       | Description                                                               |
 | ------------------------------ | ------------------------------------------------------------------------- |
 | `blank`                        | Bare scaffold — write your own prompt and orchestration                   |
-| `simple-loop`                  | Picks GitHub issues one by one and closes them                            |
+| `simple-loop`                  | Picks issues one by one and closes them                                   |
 | `sequential-reviewer`          | Implements issues one by one, with a code review step after each          |
 | `parallel-planner`             | Plans parallelizable issues, executes on separate branches, then merges   |
 | `parallel-planner-with-review` | Plans parallelizable issues, executes with per-branch review, then merges |
 
-Select a template during `sandcastle init` when prompted, or re-run init in a fresh repo to try a different one.
+Select a template during `narukami init` when prompted, or re-run init in a fresh repo to try a different one.
 
 ## CLI commands
 
-### `sandcastle init`
+### `narukami init`
 
-Scaffolds the `.sandcastle/` config directory and builds the container image. This is the first command you run in a new repo. You choose a sandbox provider (Docker or Podman) during init — selecting Podman writes a `Containerfile` instead of `Dockerfile` and uses `sandcastle podman build-image` for the build step.
+Scaffolds the `.narukami/` config directory and builds the container image. This is the first command you run in a new repo. You choose a sandbox provider (Docker or Podman) during init — selecting Podman writes a `Containerfile` instead of `Dockerfile` and uses `narukami podman build-image` for the build step.
 
-| Option         | Required | Default                      | Description                                                          |
-| -------------- | -------- | ---------------------------- | -------------------------------------------------------------------- |
-| `--image-name` | No       | `sandcastle:<repo-dir-name>` | Docker image name                                                    |
-| `--agent`      | No       | Interactive prompt           | Agent to use (`claude-code`, `pi`, `codex`, `opencode`)              |
-| `--model`      | No       | Agent's default model        | Model to use (e.g. `claude-sonnet-4-6`). Defaults to agent's default |
-| `--template`   | No       | Interactive prompt           | Template to scaffold (e.g. `blank`, `simple-loop`)                   |
+| Option         | Required | Default                    | Description                                                |
+| -------------- | -------- | -------------------------- | ---------------------------------------------------------- |
+| `--image-name` | No       | `narukami:<repo-dir-name>` | Docker image name                                          |
+| `--agent`      | No       | Interactive prompt         | Agent to use (`codex`, `claude-code`, `pi`, `opencode`)    |
+| `--model`      | No       | Agent's default model      | Model to use (e.g. `gpt-5.5`). Defaults to agent's default |
+| `--template`   | No       | Interactive prompt         | Template to scaffold (e.g. `blank`, `simple-loop`)         |
 
 Creates the following files:
 
 ```
-.sandcastle/
+.narukami/
 ├── Dockerfile      # Sandbox environment (customize as needed)
 ├── prompt.md       # Agent instructions
 ├── .env.example    # Token placeholders
 └── .gitignore      # Ignores .env, logs/
 ```
 
-Errors if `.sandcastle/` already exists to prevent overwriting customizations.
+Errors if `.narukami/` already exists to prevent overwriting customizations.
 
-### `sandcastle docker build-image`
+### `narukami docker build-image`
 
-Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this after modifying the Dockerfile.
+Rebuilds the Docker image from an existing `.narukami/` directory. Use this after modifying the Dockerfile.
 
-| Option         | Required | Default                      | Description                                                                       |
-| -------------- | -------- | ---------------------------- | --------------------------------------------------------------------------------- |
-| `--image-name` | No       | `sandcastle:<repo-dir-name>` | Docker image name                                                                 |
-| `--dockerfile` | No       | —                            | Path to a custom Dockerfile (build context will be the current working directory) |
+| Option         | Required | Default                    | Description                                                                       |
+| -------------- | -------- | -------------------------- | --------------------------------------------------------------------------------- |
+| `--image-name` | No       | `narukami:<repo-dir-name>` | Docker image name                                                                 |
+| `--dockerfile` | No       | —                          | Path to a custom Dockerfile (build context will be the current working directory) |
 
-### `sandcastle docker remove-image`
+### `narukami docker remove-image`
 
 Removes the Docker image.
 
-| Option         | Required | Default                      | Description       |
-| -------------- | -------- | ---------------------------- | ----------------- |
-| `--image-name` | No       | `sandcastle:<repo-dir-name>` | Docker image name |
+| Option         | Required | Default                    | Description       |
+| -------------- | -------- | -------------------------- | ----------------- |
+| `--image-name` | No       | `narukami:<repo-dir-name>` | Docker image name |
 
-### `sandcastle podman build-image`
+### `narukami podman build-image`
 
-Builds the Podman image from an existing `.sandcastle/` directory. Use this after modifying the Containerfile.
+Builds the Podman image from an existing `.narukami/` directory. Use this after modifying the Containerfile.
 
-| Option            | Required | Default                      | Description                                                                          |
-| ----------------- | -------- | ---------------------------- | ------------------------------------------------------------------------------------ |
-| `--image-name`    | No       | `sandcastle:<repo-dir-name>` | Podman image name                                                                    |
-| `--containerfile` | No       | —                            | Path to a custom Containerfile (build context will be the current working directory) |
+| Option            | Required | Default                    | Description                                                                          |
+| ----------------- | -------- | -------------------------- | ------------------------------------------------------------------------------------ |
+| `--image-name`    | No       | `narukami:<repo-dir-name>` | Podman image name                                                                    |
+| `--containerfile` | No       | —                          | Path to a custom Containerfile (build context will be the current working directory) |
 
-### `sandcastle podman remove-image`
+### `narukami podman remove-image`
 
 Removes the Podman image.
 
-| Option         | Required | Default                      | Description       |
-| -------------- | -------- | ---------------------------- | ----------------- |
-| `--image-name` | No       | `sandcastle:<repo-dir-name>` | Podman image name |
+| Option         | Required | Default                    | Description       |
+| -------------- | -------- | -------------------------- | ----------------- |
+| `--image-name` | No       | `narukami:<repo-dir-name>` | Podman image name |
 
 ### `RunOptions`
 
-| Option               | Type               | Default                       | Description                                                                                                                                                     |
-| -------------------- | ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-6")`, `pi("claude-sonnet-4-6")`, `codex("gpt-5.4-mini")`, `opencode("opencode/big-pickle")`)      |
-| `sandbox`            | SandboxProvider    | —                             | **Required.** Sandbox provider (e.g. `docker()`, `podman()`, `docker({ imageName: "sandcastle:local" })`)                                                       |
-| `cwd`                | string             | `process.cwd()`               | Host repo directory — anchor for `.sandcastle/` artifacts and git operations. Relative paths resolve against `process.cwd()`.                                   |
-| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                                                                            |
-| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`). Resolves against `process.cwd()`, **not** `cwd`.                                                        |
-| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                                                                                                                       |
-| `hooks`              | SandboxHooks       | —                             | Lifecycle hooks (`host.*`, `sandbox.*`)                                                                                                                         |
-| `name`               | string             | —                             | Display name for the run, shown as a prefix in log output                                                                                                       |
-| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                                            |
-| `branchStrategy`     | BranchStrategy     | per-provider default          | Branch strategy: `{ type: 'head' }`, `{ type: 'merge-to-head' }`, or `{ type: 'branch', branch: '…' }`                                                          |
-| `copyToWorktree`     | string[]           | —                             | Host-relative file paths to copy into the sandbox before start (not supported with `branchStrategy: { type: 'head' }`)                                          |
-| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                                                |
-| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early                                                                                     |
-| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                                                     |
-| `resumeSession`      | string             | —                             | Resume a prior Claude Code session by ID. Incompatible with `maxIterations > 1`. Session file must exist on host.                                               |
-| `signal`             | AbortSignal        | —                             | Cancel the run when aborted. Kills the in-flight agent subprocess and cancels lifecycle hooks; the worktree is preserved on disk. Rejects with `signal.reason`. |
-| `timeouts`           | Timeouts           | —                             | Override default timeouts for built-in lifecycle steps. Currently supports `{ copyToWorktreeMs?: number }` (default: 60 000).                                   |
+| Option               | Type               | Default                       | Description                                                                                                                                                              |
+| -------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `codex("gpt-5.5", { effort: "low" })`, `claudeCode("claude-opus-4-6")`, `pi("claude-sonnet-4-6")`, `opencode("opencode/big-pickle")`) |
+| `sandbox`            | SandboxProvider    | —                             | **Required.** Sandbox provider (e.g. `docker()`, `podman()`, `docker({ imageName: "narukami:local" })`)                                                                  |
+| `cwd`                | string             | `process.cwd()`               | Host repo directory — anchor for `.narukami/` artifacts and git operations. Relative paths resolve against `process.cwd()`.                                              |
+| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                                                                                     |
+| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`). Resolves against `process.cwd()`, **not** `cwd`.                                                                 |
+| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                                                                                                                                |
+| `hooks`              | SandboxHooks       | —                             | Lifecycle hooks (`host.*`, `sandbox.*`)                                                                                                                                  |
+| `name`               | string             | —                             | Display name for the run, shown as a prefix in log output                                                                                                                |
+| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                                                                                     |
+| `branchStrategy`     | BranchStrategy     | per-provider default          | Branch strategy: `{ type: 'head' }`, `{ type: 'merge-to-head' }`, or `{ type: 'branch', branch: '…' }`                                                                   |
+| `copyToWorktree`     | string[]           | —                             | Host-relative file paths to copy into the sandbox before start (not supported with `branchStrategy: { type: 'head' }`)                                                   |
+| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                                                         |
+| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early                                                                                              |
+| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                                                              |
+| `resumeSession`      | string             | —                             | Resume a prior Claude Code session by ID. Incompatible with `maxIterations > 1`. Session file must exist on host.                                                        |
+| `signal`             | AbortSignal        | —                             | Cancel the run when aborted. Kills the in-flight agent subprocess and cancels lifecycle hooks; the worktree is preserved on disk. Rejects with `signal.reason`.          |
+| `timeouts`           | Timeouts           | —                             | Override default timeouts for built-in lifecycle steps. Currently supports `{ copyToWorktreeMs?: number }` (default: 60 000).                                            |
 
 ### `RunResult`
 
@@ -715,7 +733,7 @@ Removes the Podman image.
 
 ### Session capture
 
-After each Claude Code iteration, Sandcastle automatically captures the agent's session JSONL from the sandbox to the host at `~/.claude/projects/<encoded-path>/sessions/<session-id>.jsonl`. The `cwd` fields inside each JSONL entry are rewritten to match the host repo root, so `claude --resume` works natively.
+After each Claude Code iteration, Narukami Shrine automatically captures the agent's session JSONL from the sandbox to the host at `~/.claude/projects/<encoded-path>/sessions/<session-id>.jsonl`. The `cwd` fields inside each JSONL entry are rewritten to match the host repo root, so `claude --resume` works natively.
 
 Session capture is enabled by default for `claudeCode()` and can be opted out via `captureSessions: false`. Non-Claude agent providers never attempt capture. Capture failure fails the run.
 
@@ -732,7 +750,7 @@ const result = await run({
 });
 ```
 
-Before the sandbox starts, Sandcastle validates that the session file exists on the host and transfers it into the sandbox with `cwd` fields rewritten to match the sandbox-side path. The Claude Code agent receives `--resume <id>` on its print command for iteration 1.
+Before the sandbox starts, Narukami Shrine validates that the session file exists on the host and transfers it into the sandbox with `cwd` fields rewritten to match the sandbox-side path. The Claude Code agent receives `--resume <id>` on its print command for iteration 1.
 
 Constraints:
 
@@ -760,7 +778,7 @@ agent: claudeCode("claude-opus-4-6", { effort: "high" });
 The `codex()` factory accepts an optional second argument for provider-specific options:
 
 ```typescript
-agent: codex("gpt-5.4", { effort: "high" });
+agent: codex("gpt-5.5", { effort: "low" });
 ```
 
 | Option   | Type                                           | Default | Description                                               |
@@ -770,14 +788,13 @@ agent: codex("gpt-5.4", { effort: "high" });
 
 ### Provider `env`
 
-Both **agent providers** and **sandbox providers** accept an optional `env: Record<string, string>` in their options. These environment variables are merged with the `.sandcastle/.env` resolver output at launch time:
+Both **agent providers** and **sandbox providers** accept an optional `env: Record<string, string>` in their options. These environment variables are merged with the `.narukami/.env` resolver output at launch time:
 
 ```typescript
 await run({
-  agent: claudeCode("claude-opus-4-6", {
-    env: { ANTHROPIC_API_KEY: "sk-ant-..." },
-  }),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: docker({
+    mounts: [{ hostPath: "~/.codex", sandboxPath: "~/.codex" }],
     env: { DOCKER_SPECIFIC_VAR: "value" },
   }),
   prompt: "Fix issue #42",
@@ -786,17 +803,17 @@ await run({
 
 **Merge rules:**
 
-- Provider env (agent + sandbox) overrides `.sandcastle/.env` resolver output for shared keys
+- Provider env (agent + sandbox) overrides `.narukami/.env` resolver output for shared keys
 - Agent provider env and sandbox provider env **must not overlap** — if they share any key, `run()` throws an error
 - When `env` is not provided, it defaults to `{}`
 
-Environment variables are also resolved automatically from `.sandcastle/.env` and `process.env` — no need to pass them to the API. The required variables depend on the **agent provider** (see `sandcastle init` output for details).
+Environment variables are also resolved automatically from `.narukami/.env` and `process.env` — no need to pass them to the API. The required variables depend on the **agent provider** (see `narukami init` output for details).
 
 ## Custom Sandbox Providers
 
-Sandcastle ships with built-in providers for Docker, Podman, and Vercel, but you can create your own. A sandbox provider tells Sandcastle how to execute commands in an isolated environment. There are two kinds:
+Narukami Shrine ships with built-in providers for Docker, Podman, and Vercel, but you can create your own. A sandbox provider tells Narukami Shrine how to execute commands in an isolated environment. There are two kinds:
 
-- **Bind-mount** — the sandbox can mount a host directory. Sandcastle creates a worktree on the host and the provider mounts it in. No file sync needed. Use this for Docker, Podman, or any local container runtime.
+- **Bind-mount** — the sandbox can mount a host directory. Narukami Shrine creates a worktree on the host and the provider mounts it in. No file sync needed. Use this for Docker, Podman, or any local container runtime.
 - **Isolated** — the sandbox has its own filesystem (e.g. a cloud VM). The provider handles syncing code in and out via `copyIn` and `copyFileOut`. Use this when the sandbox cannot access the host filesystem.
 
 ### The sandbox handle contract
@@ -834,7 +851,7 @@ import {
   type BindMountCreateOptions,
   type BindMountSandboxHandle,
   type ExecResult,
-} from "@ai-hero/sandcastle";
+} from "@yae-tools/narukami-shrine";
 import { execFile, spawn } from "node:child_process";
 import { copyFile as fsCopyFile, mkdir as fsMkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -869,7 +886,7 @@ const localProcess = () =>
               const rl = createInterface({ input: proc.stdout! });
               rl.on("line", (line) => {
                 stdoutChunks.push(line);
-                onLine(line); // forward each line to Sandcastle
+                onLine(line); // forward each line to Narukami Shrine
               });
 
               proc.stderr!.on("data", (chunk: Buffer) => {
@@ -934,7 +951,7 @@ import {
   createIsolatedSandboxProvider,
   type IsolatedSandboxHandle,
   type ExecResult,
-} from "@ai-hero/sandcastle";
+} from "@yae-tools/narukami-shrine";
 import { execFile, spawn } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1038,7 +1055,7 @@ A branch strategy controls where the agent's commits land. Configure it when con
 | Strategy        | Behavior                                                                 | Bind-mount | Isolated  |
 | --------------- | ------------------------------------------------------------------------ | ---------- | --------- |
 | `head`          | Agent writes directly to the host working directory. No worktree created | Default    | N/A       |
-| `merge-to-head` | Sandcastle creates a temp branch, merges back to HEAD when done          | Supported  | Default   |
+| `merge-to-head` | Narukami Shrine creates a temp branch, merges back to HEAD when done     | Supported  | Default   |
 | `branch`        | Commits land on an explicit named branch you provide                     | Supported  | Supported |
 
 **When to use each:**
@@ -1050,24 +1067,24 @@ A branch strategy controls where the agent's commits land. Configure it when con
 Branch strategy is now configured on `run()`, not on the provider:
 
 ```typescript
-import { run, claudeCode } from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { run, codex } from "@yae-tools/narukami-shrine";
+import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
 
 // head — direct write, bind-mount only (default for bind-mount providers)
 await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: docker(),
   prompt: "…",
 });
 // merge-to-head — temp branch, merge back (default for isolated providers)
 await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: tempDir(),
   prompt: "…",
 });
 // branch — explicit named branch
 await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: docker(),
   branchStrategy: { type: "branch", branch: "agent/fix-42" },
   prompt: "…",
@@ -1079,10 +1096,10 @@ await run({
 Pass your custom provider via the `sandbox` option — it works the same as the built-in `docker()` provider:
 
 ```typescript
-import { run, claudeCode } from "@ai-hero/sandcastle";
+import { run, codex } from "@yae-tools/narukami-shrine";
 
 const result = await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: codex("gpt-5.5", { effort: "low" }),
   sandbox: localProcess(), // your custom provider
   prompt: "Fix issue #42 in this repo.",
 });
@@ -1099,26 +1116,25 @@ For real-world examples, see:
 
 ## Configuration
 
-### Config directory (`.sandcastle/`)
+### Config directory (`.narukami/`)
 
-All per-repo sandbox configuration lives in `.sandcastle/`. Run `sandcastle init` to create it.
+All per-repo sandbox configuration lives in `.narukami/`. Run `narukami init` to create it.
 
 ### Custom Dockerfile
 
-The `.sandcastle/Dockerfile` controls the sandbox environment. The default template installs:
+The `.narukami/Dockerfile` controls the sandbox environment. The default template installs:
 
 - **Node.js 22** (base image)
 - **git**, **curl**, **jq** (system dependencies)
-- **GitHub CLI** (`gh`)
-- **Claude Code CLI**
-- A non-root `agent` user (required — Claude runs as this user)
+- **Codex CLI**
+- A non-root `agent` user
 
 When customizing the Dockerfile, ensure you keep:
 
-- A non-root user (the default `agent` user) for Claude to run as
+- A non-root user (the default `agent` user) for the agent to run as
 - `git` (required for commits and branch operations)
-- `gh` (required for issue fetching)
-- Claude Code CLI installed and on PATH
+- Codex CLI installed and on PATH
+- A `~/.codex` mount when using ChatGPT subscription auth in Docker or Podman
 
 Add your project-specific dependencies (e.g., language runtimes, build tools) to the Dockerfile as needed.
 

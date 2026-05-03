@@ -103,7 +103,7 @@ export const sandboxSessionStore = (
       const sandboxPath = join(projectDir, `${id}.jsonl`);
       const tmpPath = join(
         tmpdir(),
-        `sandcastle-session-${id}-${Date.now()}.jsonl`,
+        `narukami-session-${id}-${Date.now()}.jsonl`,
       );
       await handle.copyFileOut(sandboxPath, tmpPath);
       try {
@@ -116,7 +116,7 @@ export const sandboxSessionStore = (
       const sandboxPath = join(projectDir, `${id}.jsonl`);
       const tmpPath = join(
         tmpdir(),
-        `sandcastle-session-${id}-${Date.now()}.jsonl`,
+        `narukami-session-${id}-${Date.now()}.jsonl`,
       );
       await writeFile(tmpPath, content);
       try {

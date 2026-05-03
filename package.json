@@ -1,6 +1,6 @@
 {
-  "name": "@ai-hero/sandcastle",
-  "version": "0.5.7",
+  "name": "@yae-tools/narukami-shrine",
+  "version": "0.1.0",
   "description": "CLI for orchestrating AI agents in isolated sandbox environments",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,7 +32,8 @@
     }
   },
   "bin": {
-    "sandcastle": "dist/main.js"
+    "narukami": "dist/main.js",
+    "narukami-shrine": "dist/main.js"
   },
   "scripts": {
     "build": "tsgo --project tsconfig.build.json",
@@ -44,10 +45,10 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "release": "changeset publish",
-    "sandcastle": "npm run build && tsx .sandcastle/run.ts",
-    "test-podman": "npm run build && tsx --env-file=.sandcastle/.env .sandcastle/test-podman.ts",
-    "test-vercel": "npm run build && tsx --env-file=.sandcastle/.env .sandcastle/test-vercel.ts",
-    "test-interactive": "npm run build && tsx --env-file=.sandcastle/.env .sandcastle/test-interactive.ts"
+    "narukami": "npm run build && tsx .narukami/run.ts",
+    "test-podman": "npm run build && tsx --env-file=.narukami/.env .narukami/test-podman.ts",
+    "test-vercel": "npm run build && tsx --env-file=.narukami/.env .narukami/test-vercel.ts",
+    "test-interactive": "npm run build && tsx --env-file=.narukami/.env .narukami/test-interactive.ts"
   },
   "keywords": [
     "cli",
@@ -59,11 +60,12 @@
   "packageManager": "npm@10.9.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattpocock/sandcastle"
+    "url": "https://github.com/yae-tools/narukami-shrine"
   },
   "license": "MIT",
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
+    "@daytona/sdk": "^0.164.0",
     "@effect/vitest": "^0.28.0",
     "@types/node": "^25.5.0",
     "@typescript/native-preview": "^7.0.0-dev.20260317.1",
@@ -83,8 +85,8 @@
     "effect": "^3.20.0"
   },
   "peerDependencies": {
-    "@vercel/sandbox": ">=1.0.0",
-    "@daytona/sdk": "^0.164.0"
+    "@daytona/sdk": "^0.164.0",
+    "@vercel/sandbox": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "@vercel/sandbox": {

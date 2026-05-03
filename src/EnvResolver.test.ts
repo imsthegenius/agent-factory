@@ -12,11 +12,11 @@ const runResolveEnv = (dir: string) =>
   Effect.runPromise(resolveEnv(dir).pipe(Effect.provide(NodeContext.layer)));
 
 describe("resolveEnv", () => {
-  it("returns all key-value pairs from .sandcastle/.env", async () => {
+  it("returns all key-value pairs from .narukami/.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
     await writeFile(
-      join(dir, ".sandcastle", ".env"),
+      join(dir, ".narukami", ".env"),
       "ANTHROPIC_API_KEY=sc-key\nGH_TOKEN=sc-gh\n",
     );
 
@@ -40,26 +40,26 @@ describe("resolveEnv", () => {
     expect(env).toEqual({});
   });
 
-  it("root .env is ignored even when .sandcastle/.env also exists", async () => {
+  it("root .env is ignored even when .narukami/.env also exists", async () => {
     const dir = await makeDir();
     await writeFile(join(dir, ".env"), "ROOT_ONLY=root-val\nSHARED=root\n");
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
     await writeFile(
-      join(dir, ".sandcastle", ".env"),
+      join(dir, ".narukami", ".env"),
       "SC_ONLY=sc-val\nSHARED=sc\n",
     );
 
     const env = await runResolveEnv(dir);
     expect(env["ROOT_ONLY"]).toBeUndefined();
     expect(env["SC_ONLY"]).toBe("sc-val");
-    expect(env["SHARED"]).toBe("sc"); // only .sandcastle/.env is used
+    expect(env["SHARED"]).toBe("sc"); // only .narukami/.env is used
   });
 
-  it("falls back to process.env for keys declared in .sandcastle/.env", async () => {
+  it("falls back to process.env for keys declared in .narukami/.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    // .sandcastle/.env declares the key but with empty value
-    await writeFile(join(dir, ".sandcastle", ".env"), "MY_TOKEN=\n");
+    await mkdir(join(dir, ".narukami"));
+    // .narukami/.env declares the key but with empty value
+    await writeFile(join(dir, ".narukami", ".env"), "MY_TOKEN=\n");
 
     const orig = process.env["MY_TOKEN"];
     try {
@@ -72,10 +72,10 @@ describe("resolveEnv", () => {
     }
   });
 
-  it("does NOT pull keys from process.env that are not in .sandcastle/.env", async () => {
+  it("does NOT pull keys from process.env that are not in .narukami/.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), "DECLARED_KEY=value\n");
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), "DECLARED_KEY=value\n");
 
     // PATH is always in process.env but should not appear in result
     const env = await runResolveEnv(dir);
@@ -84,10 +84,10 @@ describe("resolveEnv", () => {
     expect(env["DECLARED_KEY"]).toBe("value");
   });
 
-  it(".sandcastle/.env takes precedence over process.env", async () => {
+  it(".narukami/.env takes precedence over process.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), "MY_VAR=sc-val\n");
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), "MY_VAR=sc-val\n");
 
     const orig = process.env["MY_VAR"];
     try {
@@ -106,11 +106,11 @@ describe("resolveEnv", () => {
     expect(env).toEqual({});
   });
 
-  it("ignores comments and blank lines in .sandcastle/.env", async () => {
+  it("ignores comments and blank lines in .narukami/.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
     await writeFile(
-      join(dir, ".sandcastle", ".env"),
+      join(dir, ".narukami", ".env"),
       "# This is a comment\n\nKEY1=val1\n\n# Another comment\nKEY2=val2\n",
     );
 
@@ -118,12 +118,12 @@ describe("resolveEnv", () => {
     expect(env).toEqual({ KEY1: "val1", KEY2: "val2" });
   });
 
-  it("does no validation — returns whatever keys are present in .sandcastle/.env", async () => {
+  it("does no validation — returns whatever keys are present in .narukami/.env", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
     // Only custom keys, no ANTHROPIC_API_KEY or GH_TOKEN
     await writeFile(
-      join(dir, ".sandcastle", ".env"),
+      join(dir, ".narukami", ".env"),
       "NPM_TOKEN=npm123\nDATABASE_URL=pg://localhost\n",
     );
 
@@ -136,9 +136,9 @@ describe("resolveEnv", () => {
 
   it("strips matching double quotes from values", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
+    await mkdir(join(dir, ".narukami"));
     await writeFile(
-      join(dir, ".sandcastle", ".env"),
+      join(dir, ".narukami", ".env"),
       'ANTHROPIC_API_KEY="sk-ant-api03-real-key"\n',
     );
 
@@ -148,8 +148,8 @@ describe("resolveEnv", () => {
 
   it("strips matching single quotes from values", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), "TOKEN='my-token'\n");
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), "TOKEN='my-token'\n");
 
     const env = await runResolveEnv(dir);
     expect(env["TOKEN"]).toBe("my-token");
@@ -157,8 +157,8 @@ describe("resolveEnv", () => {
 
   it("leaves mismatched quotes as-is", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), `KEY="value'\n`);
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), `KEY="value'\n`);
 
     const env = await runResolveEnv(dir);
     expect(env["KEY"]).toBe(`"value'`);
@@ -166,8 +166,8 @@ describe("resolveEnv", () => {
 
   it("leaves interior quotes as-is", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), 'KEY=some"thing\n');
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), 'KEY=some"thing\n');
 
     const env = await runResolveEnv(dir);
     expect(env["KEY"]).toBe('some"thing');
@@ -175,17 +175,17 @@ describe("resolveEnv", () => {
 
   it("handles empty quoted values", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), 'KEY=""\n');
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), 'KEY=""\n');
 
     const env = await runResolveEnv(dir);
     expect(env).toEqual({});
   });
 
-  it("process.env fallback works for keys in .sandcastle/.env too", async () => {
+  it("process.env fallback works for keys in .narukami/.env too", async () => {
     const dir = await makeDir();
-    await mkdir(join(dir, ".sandcastle"));
-    await writeFile(join(dir, ".sandcastle", ".env"), "FALLBACK_KEY=\n");
+    await mkdir(join(dir, ".narukami"));
+    await writeFile(join(dir, ".narukami", ".env"), "FALLBACK_KEY=\n");
 
     const orig = process.env["FALLBACK_KEY"];
     try {

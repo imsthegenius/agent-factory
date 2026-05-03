@@ -1,6 +1,12 @@
 import { Effect, Layer, Ref } from "effect";
 import { exec } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -86,11 +92,11 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     await execAsync('git commit -m "initial commit"', { cwd: hostDir });
 
     // Create a real git worktree from the host repo
-    const worktreesDir = join(hostDir, ".sandcastle", "worktrees");
+    const worktreesDir = join(hostDir, ".narukami", "worktrees");
     await mkdir(worktreesDir, { recursive: true });
     const worktreeDir = join(worktreesDir, "test-worktree");
     await execAsync(
-      `git worktree add -b "sandcastle/test" "${worktreeDir}" HEAD`,
+      `git worktree add -b "narukami/test" "${worktreeDir}" HEAD`,
       { cwd: hostDir },
     );
 
@@ -204,7 +210,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             sandbox: {
               onSandboxReady: [
@@ -263,7 +269,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             sandbox: {
               onSandboxReady: [
@@ -359,7 +365,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     );
 
     // The temp branch should no longer exist
-    const { stdout } = await execAsync('git branch --list "sandcastle/test"', {
+    const { stdout } = await execAsync('git branch --list "narukami/test"', {
       cwd: hostDir,
     });
     expect(stdout.trim()).toBe("");
@@ -379,7 +385,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     );
 
     // Temp branch deleted even with no commits
-    const { stdout } = await execAsync('git branch --list "sandcastle/test"', {
+    const { stdout } = await execAsync('git branch --list "narukami/test"', {
       cwd: hostDir,
     });
     expect(stdout.trim()).toBe("");
@@ -421,7 +427,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     ).rejects.toThrow(/merge.*failed/i);
 
     // Temp branch should still exist for recovery
-    const { stdout } = await execAsync('git branch --list "sandcastle/test"', {
+    const { stdout } = await execAsync('git branch --list "narukami/test"', {
       cwd: hostDir,
     });
     expect(stdout.trim()).toBeTruthy();
@@ -470,7 +476,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     expect(mainFile.trim()).toBe("main-content");
 
     // Temp branch should be deleted
-    const { stdout } = await execAsync('git branch --list "sandcastle/test"', {
+    const { stdout } = await execAsync('git branch --list "narukami/test"', {
       cwd: hostDir,
     });
     expect(stdout.trim()).toBe("");
@@ -481,7 +487,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
 
     // Simulate a bind-mount provider: sandboxRepoDir is the container mount point,
     // which differs from the actual host worktree path. In production the sandbox
-    // sees /home/agent/workspace while the host sees .sandcastle/worktrees/<name>.
+    // sees /home/agent/workspace while the host sees .narukami/worktrees/<name>.
     //
     // We use a PathTranslating sandbox that maps the container path to the real
     // worktree path — exactly what a bind-mount provider does.
@@ -525,7 +531,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
 
     // Temp branch should be deleted
     const { stdout: branches } = await execAsync(
-      'git branch --list "sandcastle/test"',
+      'git branch --list "narukami/test"',
       { cwd: hostDir },
     );
     expect(branches.trim()).toBe("");
@@ -556,7 +562,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
               { cwd: ctx.sandboxRepoDir },
             );
             yield* ctx.sandbox.exec(
-              'sh -c "git checkout sandcastle/test && git merge --no-ff feature/merge-test -m \\"Merge feature/merge-test\\""',
+              'sh -c "git checkout narukami/test && git merge --no-ff feature/merge-test -m \\"Merge feature/merge-test\\""',
               { cwd: ctx.sandboxRepoDir },
             );
           }),
@@ -609,7 +615,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
 
             // Back to temp branch — merge both (resolving the conflict on file.txt)
             yield* ctx.sandbox.exec(
-              'sh -c "git checkout sandcastle/test && git merge --no-ff branch-a -m \\"Merge branch-a\\""',
+              'sh -c "git checkout narukami/test && git merge --no-ff branch-a -m \\"Merge branch-a\\""',
               { cwd: ctx.sandboxRepoDir },
             );
             // branch-b will conflict on file.txt — resolve it manually
@@ -641,7 +647,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -698,7 +704,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
           // explicit branch — commits stay on that branch, no cherry-pick
-          branch: "sandcastle/test",
+          branch: "narukami/test",
         },
         (ctx) =>
           Effect.gen(function* () {
@@ -717,17 +723,17 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     );
 
     // Branch stays as the explicit branch
-    expect(result.branch).toBe("sandcastle/test");
+    expect(result.branch).toBe("narukami/test");
     expect(result.commits).toHaveLength(1);
 
-    // Commit is on sandcastle/test, NOT cherry-picked to main
+    // Commit is on narukami/test, NOT cherry-picked to main
     const { stdout: mainLog } = await execAsync("git log --oneline main", {
       cwd: hostDir,
     });
     expect(mainLog).not.toContain("explicit branch commit");
 
     const { stdout: branchLog } = await execAsync(
-      'git log --oneline "sandcastle/test"',
+      'git log --oneline "narukami/test"',
       { cwd: hostDir },
     );
     expect(branchLog).toContain("explicit branch commit");
@@ -830,7 +836,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            branch: "sandcastle/test",
+            branch: "narukami/test",
             applyToHost: () => Effect.void,
           },
           () => Effect.succeed("ok"),
@@ -856,7 +862,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            branch: "sandcastle/test",
+            branch: "narukami/test",
             applyToHost: () => Effect.void,
           },
           (ctx) =>
@@ -888,7 +894,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            branch: "sandcastle/test",
+            branch: "narukami/test",
           },
           () => Effect.succeed("ok"),
         );
@@ -899,8 +905,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
     const syncLog = entries.find(
       (e) =>
         e._tag === "taskLog" &&
-        (e.title === "No commits to sync out" ||
-          e.title.startsWith("Syncing")),
+        (e.title === "No commits to sync out" || e.title.startsWith("Syncing")),
     );
     expect(syncLog).toBeUndefined();
   });
@@ -952,7 +957,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            branch: "sandcastle/test",
+            branch: "narukami/test",
           },
           () => Effect.succeed("ok"),
         );
@@ -974,7 +979,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             host: {
               onSandboxReady: [
@@ -1003,7 +1008,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             host: {
               onSandboxReady: [{ command: "echo host-ready > host-ready.txt" }],
@@ -1042,7 +1047,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           signal: ac.signal,
           hooks: {
             host: {
@@ -1067,7 +1072,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           signal: ac.signal,
           hooks: {
             sandbox: {
@@ -1092,7 +1097,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             host: {
               onSandboxReady: [{ command: "echo ok > host-signal-test.txt" }],
@@ -1124,7 +1129,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
           {
             hostRepoDir: hostDir,
             sandboxRepoDir: worktreeDir,
-            branch: "sandcastle/test",
+            branch: "narukami/test",
             hooks: {
               host: {
                 onSandboxReady: [{ command: "exit 1" }],
@@ -1135,6 +1140,45 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         ).pipe(Effect.provide(Layer.merge(layer, testDisplayLayer))),
       ),
     ).rejects.toThrow(/Host hook failed/);
+  });
+
+  it("sandbox.onSandboxReady failure includes stdout and stderr", async () => {
+    const { hostDir, worktreeDir } = await setupWorktree();
+
+    const spySandboxLayer = Layer.succeed(Sandbox, {
+      exec: (command) => {
+        if (command === "failing-install") {
+          return Effect.succeed({
+            stdout: "install stdout detail\n",
+            stderr: "install stderr detail\n",
+            exitCode: 1,
+          });
+        }
+        return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 });
+      },
+      copyIn: () => Effect.succeed(undefined as never),
+      copyFileOut: () => Effect.succeed(undefined as never),
+    });
+
+    await expect(
+      Effect.runPromise(
+        withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+            branch: "narukami/test",
+            hooks: {
+              sandbox: {
+                onSandboxReady: [{ command: "failing-install" }],
+              },
+            },
+          },
+          () => Effect.succeed("ok"),
+        ).pipe(Effect.provide(Layer.merge(spySandboxLayer, testDisplayLayer))),
+      ),
+    ).rejects.toThrow(
+      /stdout:\ninstall stdout detail[\s\S]*stderr:\ninstall stderr detail/,
+    );
   });
 
   it("sandbox.onSandboxReady respects per-hook timeoutMs", async () => {
@@ -1160,12 +1204,10 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             sandbox: {
-              onSandboxReady: [
-                { command: "slow-install", timeoutMs: 500 },
-              ],
+              onSandboxReady: [{ command: "slow-install", timeoutMs: 500 }],
             },
           },
         },
@@ -1184,12 +1226,10 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             host: {
-              onSandboxReady: [
-                { command: "sleep 2", timeoutMs: 500 },
-              ],
+              onSandboxReady: [{ command: "sleep 2", timeoutMs: 500 }],
             },
           },
         },
@@ -1209,7 +1249,7 @@ describe("withSandboxLifecycle (worktree mode)", () => {
         {
           hostRepoDir: hostDir,
           sandboxRepoDir: worktreeDir,
-          branch: "sandcastle/test",
+          branch: "narukami/test",
           hooks: {
             sandbox: {
               onSandboxReady: [{ command: "echo default-timeout > dt.txt" }],
@@ -1269,7 +1309,7 @@ describe("runHostHooks", () => {
     await Effect.runPromise(runHostHooks([{ command: "pwd > cwd.txt" }], dir));
 
     const content = await readFile(join(dir, "cwd.txt"), "utf-8");
-    expect(content.trim()).toBe(dir);
+    expect(await realpath(content.trim())).toBe(await realpath(dir));
   });
 
   it("aborts a running hook when signal fires", async () => {
@@ -1305,10 +1345,7 @@ describe("runHostHooks", () => {
     // sleep 2 with a 500ms timeout should fail
     await expect(
       Effect.runPromise(
-        runHostHooks(
-          [{ command: "sleep 2", timeoutMs: 500 }],
-          dir,
-        ),
+        runHostHooks([{ command: "sleep 2", timeoutMs: 500 }], dir),
       ),
     ).rejects.toThrow(/timed out/);
   });

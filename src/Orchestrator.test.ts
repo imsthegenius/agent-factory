@@ -126,7 +126,7 @@ const makeTestSandboxFactory = (
         // Acquire: create fresh worktree from host repo
         Effect.promise(async () => {
           await rm(sandboxBaseDir, { recursive: true, force: true });
-          const branchName = `sandcastle/test-${++branchCounter}`;
+          const branchName = `narukami/test-${++branchCounter}`;
           await execAsync(
             `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
             { cwd: hostRepoDir },
@@ -230,7 +230,7 @@ describe("Orchestrator", () => {
             cwd: repoDir,
           });
           await execAsync('git config user.name "Agent"', { cwd: repoDir });
-          await execAsync('git commit -m "RALPH: agent commit"', {
+          await execAsync('git commit -m "NARUKAMI: agent commit"', {
             cwd: repoDir,
           });
           return "Done with iteration.";
@@ -462,7 +462,7 @@ describe("Orchestrator", () => {
           });
           await execAsync('git config user.name "Agent"', { cwd: repoDir });
           await execAsync(
-            `git commit -m "RALPH: iteration ${iterationCount}"`,
+            `git commit -m "NARUKAMI: iteration ${iterationCount}"`,
             {
               cwd: repoDir,
             },
@@ -751,7 +751,7 @@ describe("OrchestrateResult", () => {
         Effect.acquireUseRelease(
           Effect.promise(async () => {
             await rm(sandboxBaseDir, { recursive: true, force: true });
-            const branchName = `sandcastle/test-${++branchCounter}`;
+            const branchName = `narukami/test-${++branchCounter}`;
             await execAsync(
               `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
               { cwd: hostDir },
@@ -1463,7 +1463,7 @@ describe("Orchestrator error handling", () => {
                       cwd,
                     });
                     await execAsync('git config user.name "Agent"', { cwd });
-                    await execAsync('git commit -m "RALPH: iteration 1"', {
+                    await execAsync('git commit -m "NARUKAMI: iteration 1"', {
                       cwd,
                     });
                   });
@@ -1594,36 +1594,34 @@ describe("Orchestrator error handling", () => {
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
 
     const opencodeProvider = opencodeFactory("test-model");
-    const stdoutContent = "Setting up environment...\nLoading model...\nError: API key is invalid\nPlease check your credentials";
+    const stdoutContent =
+      "Setting up environment...\nLoading model...\nError: API key is invalid\nPlease check your credentials";
 
-    const { factoryLayer } = makeTestSandboxFactory(
-      hostDir,
-      (dir) => {
-        const fsLayer = makeLocalSandboxLayer(dir);
-        return Layer.succeed(Sandbox, {
-          exec: (command, options) => {
-            if (command.startsWith("opencode ")) {
-              return Effect.succeed({
-                stdout: stdoutContent,
-                stderr: "",
-                exitCode: 1,
-              });
-            }
-            return Effect.flatMap(Sandbox, (real) =>
-              real.exec(command, options),
-            ).pipe(Effect.provide(fsLayer));
-          },
-          copyIn: (hostPath, sandboxPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyIn(hostPath, sandboxPath),
-            ).pipe(Effect.provide(fsLayer)),
-          copyFileOut: (sandboxPath, hostPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyFileOut(sandboxPath, hostPath),
-            ).pipe(Effect.provide(fsLayer)),
-        });
-      },
-    );
+    const { factoryLayer } = makeTestSandboxFactory(hostDir, (dir) => {
+      const fsLayer = makeLocalSandboxLayer(dir);
+      return Layer.succeed(Sandbox, {
+        exec: (command, options) => {
+          if (command.startsWith("opencode ")) {
+            return Effect.succeed({
+              stdout: stdoutContent,
+              stderr: "",
+              exitCode: 1,
+            });
+          }
+          return Effect.flatMap(Sandbox, (real) =>
+            real.exec(command, options),
+          ).pipe(Effect.provide(fsLayer));
+        },
+        copyIn: (hostPath, sandboxPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyIn(hostPath, sandboxPath),
+          ).pipe(Effect.provide(fsLayer)),
+        copyFileOut: (sandboxPath, hostPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyFileOut(sandboxPath, hostPath),
+          ).pipe(Effect.provide(fsLayer)),
+      });
+    });
 
     const exit = await Effect.runPromiseExit(
       orchestrate({
@@ -1657,35 +1655,32 @@ describe("Orchestrator error handling", () => {
       result: "Rate limit exceeded, please retry later",
     });
 
-    const { factoryLayer } = makeTestSandboxFactory(
-      hostDir,
-      (dir) => {
-        const fsLayer = makeLocalSandboxLayer(dir);
-        return Layer.succeed(Sandbox, {
-          exec: (command, options) => {
-            if (command.startsWith("claude ") && options?.onLine) {
-              options.onLine(errorLine);
-              return Effect.succeed({
-                stdout: errorLine,
-                stderr: "",
-                exitCode: 1,
-              });
-            }
-            return Effect.flatMap(Sandbox, (real) =>
-              real.exec(command, options),
-            ).pipe(Effect.provide(fsLayer));
-          },
-          copyIn: (hostPath, sandboxPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyIn(hostPath, sandboxPath),
-            ).pipe(Effect.provide(fsLayer)),
-          copyFileOut: (sandboxPath, hostPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyFileOut(sandboxPath, hostPath),
-            ).pipe(Effect.provide(fsLayer)),
-        });
-      },
-    );
+    const { factoryLayer } = makeTestSandboxFactory(hostDir, (dir) => {
+      const fsLayer = makeLocalSandboxLayer(dir);
+      return Layer.succeed(Sandbox, {
+        exec: (command, options) => {
+          if (command.startsWith("claude ") && options?.onLine) {
+            options.onLine(errorLine);
+            return Effect.succeed({
+              stdout: errorLine,
+              stderr: "",
+              exitCode: 1,
+            });
+          }
+          return Effect.flatMap(Sandbox, (real) =>
+            real.exec(command, options),
+          ).pipe(Effect.provide(fsLayer));
+        },
+        copyIn: (hostPath, sandboxPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyIn(hostPath, sandboxPath),
+          ).pipe(Effect.provide(fsLayer)),
+        copyFileOut: (sandboxPath, hostPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyFileOut(sandboxPath, hostPath),
+          ).pipe(Effect.provide(fsLayer)),
+      });
+    });
 
     const exit = await Effect.runPromiseExit(
       orchestrate({
@@ -1702,7 +1697,9 @@ describe("Orchestrator error handling", () => {
       expect(err).toBeInstanceOf(AgentError);
       if (err instanceof AgentError) {
         expect(err.message).toContain("claude-code exited with code 1:");
-        expect(err.message).toContain("Rate limit exceeded, please retry later");
+        expect(err.message).toContain(
+          "Rate limit exceeded, please retry later",
+        );
       }
     }
   });
@@ -1715,34 +1712,31 @@ describe("Orchestrator error handling", () => {
 
     const opencodeProvider = opencodeFactory("test-model");
 
-    const { factoryLayer } = makeTestSandboxFactory(
-      hostDir,
-      (dir) => {
-        const fsLayer = makeLocalSandboxLayer(dir);
-        return Layer.succeed(Sandbox, {
-          exec: (command, options) => {
-            if (command.startsWith("opencode ")) {
-              return Effect.succeed({
-                stdout: "some stdout output",
-                stderr: "fatal error from stderr",
-                exitCode: 1,
-              });
-            }
-            return Effect.flatMap(Sandbox, (real) =>
-              real.exec(command, options),
-            ).pipe(Effect.provide(fsLayer));
-          },
-          copyIn: (hostPath, sandboxPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyIn(hostPath, sandboxPath),
-            ).pipe(Effect.provide(fsLayer)),
-          copyFileOut: (sandboxPath, hostPath) =>
-            Effect.flatMap(Sandbox, (real) =>
-              real.copyFileOut(sandboxPath, hostPath),
-            ).pipe(Effect.provide(fsLayer)),
-        });
-      },
-    );
+    const { factoryLayer } = makeTestSandboxFactory(hostDir, (dir) => {
+      const fsLayer = makeLocalSandboxLayer(dir);
+      return Layer.succeed(Sandbox, {
+        exec: (command, options) => {
+          if (command.startsWith("opencode ")) {
+            return Effect.succeed({
+              stdout: "some stdout output",
+              stderr: "fatal error from stderr",
+              exitCode: 1,
+            });
+          }
+          return Effect.flatMap(Sandbox, (real) =>
+            real.exec(command, options),
+          ).pipe(Effect.provide(fsLayer));
+        },
+        copyIn: (hostPath, sandboxPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyIn(hostPath, sandboxPath),
+          ).pipe(Effect.provide(fsLayer)),
+        copyFileOut: (sandboxPath, hostPath) =>
+          Effect.flatMap(Sandbox, (real) =>
+            real.copyFileOut(sandboxPath, hostPath),
+          ).pipe(Effect.provide(fsLayer)),
+      });
+    });
 
     const exit = await Effect.runPromiseExit(
       orchestrate({
@@ -2852,7 +2846,7 @@ describe("Orchestrator with pi provider", () => {
             cwd: repoDir,
           });
           await execAsync('git config user.name "Agent"', { cwd: repoDir });
-          await execAsync('git commit -m "RALPH: pi agent commit"', {
+          await execAsync('git commit -m "NARUKAMI: pi agent commit"', {
             cwd: repoDir,
           });
           return "Done with iteration.";
@@ -3181,7 +3175,7 @@ describe("Orchestrator with codex provider", () => {
             cwd: repoDir,
           });
           await execAsync('git config user.name "Agent"', { cwd: repoDir });
-          await execAsync('git commit -m "RALPH: codex agent commit"', {
+          await execAsync('git commit -m "NARUKAMI: codex agent commit"', {
             cwd: repoDir,
           });
           return "Done with iteration.";
@@ -3258,7 +3252,7 @@ describe("Session capture integration", () => {
         Effect.acquireUseRelease(
           Effect.promise(async () => {
             await rm(sandboxBaseDir, { recursive: true, force: true });
-            const branchName = `sandcastle/test-${++branchCounter}`;
+            const branchName = `narukami/test-${++branchCounter}`;
             await execAsync(
               `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
               { cwd: hostRepoDir },
