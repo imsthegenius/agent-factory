@@ -239,10 +239,13 @@ const buildSandboxHandle = (
 
       const {
         agent: provider,
-        prompt,
+        prompt: optionPrompt,
         promptFile,
         maxIterations = 1,
       } = runOptions;
+      const prompt =
+        optionPrompt ??
+        (promptFile === undefined ? provider.defaultPrompt : undefined);
 
       const resolved = await Effect.runPromise(
         resolvePrompt({ prompt, promptFile }).pipe(
@@ -397,7 +400,15 @@ const buildSandboxHandle = (
       try {
         lifecycleResult = await Effect.runPromise(
           Effect.gen(function* () {
-            const resolved = yield* resolvePrompt({ prompt, promptFile });
+            const prompt =
+              interactiveOptions.prompt ??
+              (interactiveOptions.promptFile === undefined
+                ? provider.defaultPrompt
+                : undefined);
+            const resolved = yield* resolvePrompt({
+              prompt,
+              promptFile: interactiveOptions.promptFile,
+            });
             const rawPrompt = resolved.text;
             const isInlinePrompt = resolved.source === "inline";
 

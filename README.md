@@ -508,12 +508,12 @@ Narukami Shrine uses a flexible prompt system. You write the prompt, and the eng
 
 ### Prompt resolution
 
-You must provide exactly one of:
+Most runs must provide exactly one of:
 
 1. `prompt: "inline string"` — pass an inline prompt directly via `RunOptions`
 2. `promptFile: "./path/to/prompt.md"` — point to a specific file via `RunOptions`
 
-`prompt` and `promptFile` are mutually exclusive — providing both is an error. If neither is provided, `run()` throws an error asking you to supply one.
+`prompt` and `promptFile` are mutually exclusive — providing both is an error. If neither is provided, `run()` throws an error asking you to supply one, unless the selected agent provider has its own default prompt. For example, `codexReview()` uses Codex CLI's built-in review preset and does not require a prompt.
 
 **Inline prompts (`prompt: "..."`) are passed to the agent literally.** No `{{KEY}}` substitution, no `` !`command` `` expansion, no built-in `{{SOURCE_BRANCH}}` / `{{TARGET_BRANCH}}` injection. If you need values interpolated into an inline prompt, build the string in JavaScript (`` `Work on ${branch}…` ``). Passing `promptArgs` alongside an inline prompt is an error — switch to `promptFile` to use substitution.
 
@@ -785,6 +785,27 @@ agent: codex("gpt-5.5", { effort: "low" });
 | -------- | ---------------------------------------------- | ------- | --------------------------------------------------------- |
 | `effort` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` | —       | Codex reasoning effort level via `model_reasoning_effort` |
 | `env`    | `Record<string, string>`                       | `{}`    | Environment variables injected by this agent provider     |
+
+### `CodexReviewOptions`
+
+Use `codexReview()` when a review step should use Codex CLI's built-in review preset instead of a general agent prompt:
+
+```typescript
+agent: codexReview("gpt-5.5", { effort: "low", base: "main" });
+```
+
+No `prompt` or `promptFile` is required. If you provide one, it is passed to Codex as custom review instructions.
+
+During `narukami init`, review templates ask Codex-agent users whether to use this built-in review backend or the scaffolded `.narukami/review-prompt.md`. Non-Codex agents use the prompt-based reviewer by default. Either way, `review-prompt.md` is still generated so teams can switch later or layer custom review instructions onto Codex review.
+
+| Option        | Type                                           | Default | Description                                               |
+| ------------- | ---------------------------------------------- | ------- | --------------------------------------------------------- |
+| `effort`      | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` | —       | Codex reasoning effort level via `model_reasoning_effort` |
+| `base`        | `string`                                       | —       | Review changes against this base branch or SHA            |
+| `uncommitted` | `boolean`                                      | `false` | Review staged, unstaged, and untracked changes            |
+| `commit`      | `string`                                       | —       | Review the changes introduced by this commit              |
+| `title`       | `string`                                       | —       | Optional title for Codex's review summary                 |
+| `env`         | `Record<string, string>`                       | `{}`    | Environment variables injected by this agent provider     |
 
 ### Provider `env`
 

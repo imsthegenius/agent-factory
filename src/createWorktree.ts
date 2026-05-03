@@ -274,7 +274,10 @@ export const createWorktree = async (
     // If signal is already aborted, reject immediately without any setup
     opts.signal?.throwIfAborted();
 
-    const { prompt, promptFile, hooks, agent: provider } = opts;
+    const { prompt: optionPrompt, promptFile, hooks, agent: provider } = opts;
+    const prompt =
+      optionPrompt ??
+      (promptFile === undefined ? provider.defaultPrompt : undefined);
     const resolvedSandbox = opts.sandbox ?? noSandbox();
 
     // Validate buildInteractiveArgs is available
@@ -475,7 +478,10 @@ export const createWorktree = async (
     // If signal is already aborted, reject immediately without any setup
     opts.signal?.throwIfAborted();
 
-    const { prompt, promptFile, hooks, agent: provider } = opts;
+    const { prompt: optionPrompt, promptFile, hooks, agent: provider } = opts;
+    const prompt =
+      optionPrompt ??
+      (promptFile === undefined ? provider.defaultPrompt : undefined);
     const sandboxProvider = opts.sandbox;
     const maxIterations = opts.maxIterations ?? 1;
 

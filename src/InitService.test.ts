@@ -15,9 +15,8 @@ import {
   listSandboxProviders,
   getSandboxProvider,
 } from "./InitService.js";
-import type { AgentEntry, ScaffoldOptions } from "./InitService.js";
+import type { ScaffoldOptions } from "./InitService.js";
 import { SANDBOX_REPO_DIR } from "./SandboxFactory.js";
-import { SKELETON_PROMPT } from "./templates.js";
 
 const makeDir = () => mkdtemp(join(tmpdir(), "init-service-"));
 
@@ -548,6 +547,7 @@ describe("InitService scaffold", () => {
       const runCallCount = (mainTs.match(/\.run\(/g) ?? []).length;
       expect(runCallCount).toBeGreaterThanOrEqual(2);
       expect(mainTs).toContain("implement-prompt.md");
+      expect(mainTs).toContain("codexReview");
       expect(mainTs).toContain("review-prompt.md");
     });
 
@@ -564,8 +564,72 @@ describe("InitService scaffold", () => {
       expect(mainTs).not.toContain(
         'branchStrategy: { type: "branch", branch }',
       );
-      expect(mainTs).toContain("REVIEW_BASE: reviewBase");
-      expect(mainTs).toContain("BRANCH: branch");
+      expect(mainTs).toContain("base: reviewBase");
+    });
+
+    it("defaults Codex agents to built-in Codex review without enabling reviewPromptFile", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain("codexReview");
+      expect(mainTs).toContain(
+        "const reviewPromptFile: string | undefined = undefined",
+      );
+    });
+
+    it("can scaffold prompt-based review with the selected agent", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "sequential-reviewer",
+        reviewBackend: "prompt",
+      });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).not.toContain("codexReview");
+      expect(mainTs).toContain('agent: narukami.codex("gpt-5.5"');
+      expect(mainTs).toContain(
+        'const reviewPromptFile: string | undefined = "./.narukami/review-prompt.md"',
+      );
+    });
+
+    it("uses prompt-based review automatically for non-Codex agents", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "sequential-reviewer",
+        agent: claudeCodeAgent,
+        model: "claude-sonnet-4-6",
+      });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).not.toContain("codexReview");
+      expect(mainTs).toContain(
+        'agent: narukami.claudeCode("claude-sonnet-4-6")',
+      );
+      expect(mainTs).toContain(
+        'const reviewPromptFile: string | undefined = "./.narukami/review-prompt.md"',
+      );
+    });
+
+    it("review-prompt.md contains branch and review base prompt arguments", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const prompt = await readFile(
+        join(dir, ".narukami", "review-prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("{{BRANCH}}");
+      expect(prompt).toContain("{{REVIEW_BASE}}");
     });
 
     it("implement-prompt.md contains issue selection and closure, not prompt argument placeholders", async () => {
@@ -580,18 +644,6 @@ describe("InitService scaffold", () => {
       expect(prompt).not.toContain("{{ISSUE_NUMBER}}");
       expect(prompt).not.toContain("{{ISSUE_TITLE}}");
       expect(prompt).not.toContain("{{BRANCH}}");
-    });
-
-    it("review-prompt.md contains branch and review base prompt arguments", async () => {
-      const dir = await makeDir();
-      await runScaffold(dir, { templateName: "sequential-reviewer" });
-
-      const prompt = await readFile(
-        join(dir, ".narukami", "review-prompt.md"),
-        "utf-8",
-      );
-      expect(prompt).toContain("{{BRANCH}}");
-      expect(prompt).toContain("{{REVIEW_BASE}}");
     });
 
     it("sequential-reviewer appears in listTemplates()", async () => {
@@ -1013,7 +1065,7 @@ describe("InitService scaffold", () => {
   });
 
   describe("parallel-planner-with-review template", () => {
-    it("produces main.mts, plan-prompt.md, implement-prompt.md, review-prompt.md, merge-prompt.md", async () => {
+    it("produces main.mts, plan-prompt.md, implement-prompt.md, review-prompt.md, and merge-prompt.md", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
@@ -1070,8 +1122,27 @@ describe("InitService scaffold", () => {
         "utf-8",
       );
       expect(mainTs).toContain("implement-prompt.md");
+      expect(mainTs).toContain("codexReview");
       expect(mainTs).toContain("review-prompt.md");
       expect(mainTs).toContain("implement.commits.length > 0");
+    });
+
+    it("can scaffold prompt-based review in parallel planner with review", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "parallel-planner-with-review",
+        reviewBackend: "prompt",
+      });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).not.toContain("codexReview");
+      expect(mainTs).toContain('agent: narukami.codex("gpt-5.5"');
+      expect(mainTs).toContain(
+        'const reviewPromptFile: string | undefined = "./.narukami/review-prompt.md"',
+      );
     });
 
     it("main.mts captures reviewer result and merges commits from both runs", async () => {
@@ -1206,7 +1277,7 @@ describe("InitService scaffold", () => {
         join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain('codex("gpt-5.5", { effort: "low" })');
+      expect(mainTs).toContain('codexReview("gpt-5.5"');
     });
 
     it("scaffolds CODING_STANDARDS.md with minimal starter content", async () => {

@@ -38,6 +38,11 @@ const hooks = {
 // can break native packages such as esbuild when the host is macOS/Windows.
 const copyToWorktree: string[] = [];
 
+// Codex review has built-in review instructions, so no prompt is needed by
+// default. Set this to "./.narukami/review-prompt.md" to add custom review
+// instructions, or when using a general agent provider for review.
+const reviewPromptFile: string | undefined = undefined;
+
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
@@ -94,12 +99,19 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     branchStrategy: { type: "merge-to-head" },
     name: "reviewer",
     maxIterations: 1,
-    agent: narukami.claudeCode("claude-sonnet-4-6"),
-    promptFile: "./.narukami/review-prompt.md",
-    promptArgs: {
-      BRANCH: branch,
-      REVIEW_BASE: reviewBase,
-    },
+    agent: narukami.codexReview("gpt-5.5", {
+      effort: "low",
+      base: reviewBase,
+    }),
+    ...(reviewPromptFile === undefined
+      ? {}
+      : {
+          promptFile: reviewPromptFile,
+          promptArgs: {
+            BRANCH: branch,
+            REVIEW_BASE: reviewBase,
+          },
+        }),
   });
 
   console.log("\nReview complete.");

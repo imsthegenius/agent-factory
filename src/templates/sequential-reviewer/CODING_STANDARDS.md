@@ -1,8 +1,8 @@
 # Coding Standards
 
 <!-- Customize this file with your project's coding standards.
-     The reviewer agent loads it during code review via @.narukami/CODING_STANDARDS.md
-     so these standards are enforced during review without costing tokens during implementation. -->
+     Pass it as custom review instructions if you want Codex review to enforce
+     local standards in addition to its built-in review preset. -->
 
 ## Style
 

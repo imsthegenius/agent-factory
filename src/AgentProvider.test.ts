@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { claudeCode, codex, opencode, pi } from "./AgentProvider.js";
+import {
+  claudeCode,
+  codex,
+  codexReview,
+  opencode,
+  pi,
+} from "./AgentProvider.js";
 import type { AgentCommandOptions } from "./AgentProvider.js";
 
 /** Shorthand: build options with dangerouslySkipPermissions: true (mirrors existing sandbox callers). */
@@ -684,6 +690,66 @@ describe("codex factory", () => {
   it("defaults env to empty object when not provided", () => {
     const provider = codex("gpt-5.4-mini");
     expect(provider.env).toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// codexReview factory
+// ---------------------------------------------------------------------------
+
+describe("codexReview factory", () => {
+  it("returns a provider with name 'codex-review'", () => {
+    const provider = codexReview("gpt-5.5");
+    expect(provider.name).toBe("codex-review");
+  });
+
+  it("uses an empty default prompt so review runs can omit promptFile", () => {
+    const provider = codexReview("gpt-5.5");
+    expect(provider.defaultPrompt).toBe("");
+  });
+
+  it("buildPrintCommand uses Codex review and delivers instructions via stdin", () => {
+    const provider = codexReview("gpt-5.5");
+    const { command, stdin } = provider.buildPrintCommand(opts("review this"));
+    expect(command).toContain("codex -m 'gpt-5.5'");
+    expect(command).toContain(" review ");
+    expect(command).toContain(" -");
+    expect(command).not.toContain("review this");
+    expect(stdin).toBe("review this");
+  });
+
+  it("buildPrintCommand includes review selector flags", () => {
+    const provider = codexReview("gpt-5.5", {
+      base: "main",
+      uncommitted: true,
+      commit: "abc123",
+      title: "My change",
+    });
+    const { command } = provider.buildPrintCommand(opts("review this"));
+    expect(command).toContain("--base 'main'");
+    expect(command).toContain("--uncommitted");
+    expect(command).toContain("--commit 'abc123'");
+    expect(command).toContain("--title 'My change'");
+  });
+
+  it("buildPrintCommand includes model reasoning effort config when specified", () => {
+    const provider = codexReview("gpt-5.5", { effort: "high" });
+    const { command } = provider.buildPrintCommand(opts("review this"));
+    expect(command).toContain(`-c 'model_reasoning_effort="high"'`);
+  });
+
+  it("parseStreamLine forwards plain text review output", () => {
+    const provider = codexReview("gpt-5.5");
+    expect(provider.parseStreamLine("Finding")).toEqual([
+      { type: "text", text: "Finding\n" },
+    ]);
+  });
+
+  it("accepts an env option and exposes it on the provider", () => {
+    const provider = codexReview("gpt-5.5", {
+      env: { OPENAI_API_KEY: "sk-test" },
+    });
+    expect(provider.env).toEqual({ OPENAI_API_KEY: "sk-test" });
   });
 });
 

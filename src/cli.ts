@@ -28,6 +28,7 @@ import { defaultImageName } from "./sandboxes/docker.js";
 import type {
   AgentEntry,
   IssueProviderEntry,
+  ReviewBackend,
   SandboxProviderEntry,
 } from "./InitService.js";
 import { ConfigDirError, InitError } from "./errors.js";
@@ -237,6 +238,41 @@ const initCommand = Command.make(
         selectedTemplate = selected as string;
       }
 
+      let reviewBackend: ReviewBackend | undefined;
+      const templateHasReview =
+        selectedTemplate === "sequential-reviewer" ||
+        selectedTemplate === "parallel-planner-with-review";
+      if (templateHasReview) {
+        if (selectedAgent.name === "codex") {
+          const selected = yield* Effect.promise(() =>
+            clack.select({
+              message: "Select a review backend:",
+              initialValue: "codex-review",
+              options: [
+                {
+                  value: "codex-review",
+                  label: "Codex built-in review",
+                  hint: "Uses `codex review`; review-prompt.md remains available for custom instructions",
+                },
+                {
+                  value: "prompt",
+                  label: "Prompt-based review",
+                  hint: "Uses .narukami/review-prompt.md with the selected agent",
+                },
+              ],
+            }),
+          );
+          if (clack.isCancel(selected)) {
+            yield* Effect.fail(
+              new InitError({ message: "Review backend selection cancelled." }),
+            );
+          }
+          reviewBackend = selected as ReviewBackend;
+        } else {
+          reviewBackend = "prompt";
+        }
+      }
+
       // Offer to create the "Narukami Shrine" label on the repo (skip for non-GitHub issue providers)
       let shouldCreateLabel: boolean | symbol = false;
       if (selectedIssueProvider.name === "github-issues") {
@@ -269,6 +305,7 @@ const initCommand = Command.make(
           createLabel: shouldCreateLabel === true,
           issueProvider: selectedIssueProvider,
           sandboxProvider: selectedSandboxProvider,
+          reviewBackend,
         }).pipe(
           Effect.mapError(
             (e) =>

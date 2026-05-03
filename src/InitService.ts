@@ -641,11 +641,18 @@ export interface ScaffoldOptions {
   createLabel?: boolean;
   issueProvider?: IssueProviderEntry;
   sandboxProvider?: SandboxProviderEntry;
+  reviewBackend?: ReviewBackend;
 }
 
 export interface ScaffoldResult {
   mainFilename: string;
 }
+
+export type ReviewBackend = "codex-review" | "prompt";
+
+const templateHasReview = (templateName: string): boolean =>
+  templateName === "sequential-reviewer" ||
+  templateName === "parallel-planner-with-review";
 
 /**
  * Detect whether the project's package.json has `"type": "module"`.
@@ -749,6 +756,60 @@ const applyPackageManagerConfig = (
       `${packageManager.installCommandLabel} ensures`,
     );
 
+const agentFactoryCall = (agent: AgentEntry, model: string): string => {
+  const factoryArgs = agent.defaultFactoryOptions
+    ? `"${model}", ${agent.defaultFactoryOptions}`
+    : `"${model}"`;
+  return `narukami.${agent.factoryImport}(${factoryArgs})`;
+};
+
+const rewriteReviewBackend = (
+  configDir: string,
+  agent: AgentEntry,
+  model: string,
+  mainFilename: string,
+  reviewBackend: ReviewBackend,
+): Effect.Effect<void, Error, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const mainTsPath = join(configDir, mainFilename);
+    const exists = yield* fs
+      .exists(mainTsPath)
+      .pipe(Effect.mapError((e) => new Error(e.message)));
+    if (!exists) return;
+
+    let content = yield* fs
+      .readFileString(mainTsPath)
+      .pipe(Effect.mapError((e) => new Error(e.message)));
+
+    if (reviewBackend === "codex-review") {
+      content = content.replace(
+        /const reviewPromptFile: string \| undefined = undefined;/,
+        "const reviewPromptFile: string | undefined = undefined;",
+      );
+      content = content.replace(
+        /agent: narukami\.codexReview\([\s\S]*?\n\s+\}\),/g,
+        `agent: narukami.codexReview("${model}", {
+      effort: "low",
+      base: reviewBase,
+    }),`,
+      );
+    } else {
+      content = content.replace(
+        /const reviewPromptFile: string \| undefined = undefined;/,
+        'const reviewPromptFile: string | undefined = "./.narukami/review-prompt.md";',
+      );
+      content = content.replace(
+        /agent: narukami\.codexReview\([\s\S]*?\n\s+\}\),/g,
+        `agent: ${agentFactoryCall(agent, model)},`,
+      );
+    }
+
+    yield* fs
+      .writeFileString(mainTsPath, content)
+      .pipe(Effect.mapError((e) => new Error(e.message)));
+  });
+
 export const scaffold = (
   repoDir: string,
   options: ScaffoldOptions,
@@ -761,6 +822,7 @@ export const scaffold = (
       createLabel = true,
       issueProvider = ISSUE_PROVIDER_REGISTRY[0]!, // default: linear
       sandboxProvider = SANDBOX_PROVIDER_REGISTRY[0]!, // default: docker
+      reviewBackend = agent.name === "codex" ? "codex-review" : "prompt",
     } = options;
     const fs = yield* FileSystem.FileSystem;
     const configDir = join(repoDir, ".narukami");
@@ -816,6 +878,16 @@ export const scaffold = (
 
     // Rewrite main file with the selected agent factory and model
     yield* rewriteMainTs(configDir, agent, model, mainFilename, packageManager);
+
+    if (templateHasReview(templateName)) {
+      yield* rewriteReviewBackend(
+        configDir,
+        agent,
+        model,
+        mainFilename,
+        reviewBackend,
+      );
+    }
 
     // Replace issue provider template arguments in all text files (must run before label stripping)
     yield* substituteTemplateArgs(configDir, issueProvider);

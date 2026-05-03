@@ -284,12 +284,15 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   options.signal?.throwIfAborted();
 
   const {
-    prompt,
+    prompt: optionPrompt,
     promptFile,
     maxIterations = DEFAULT_MAX_ITERATIONS,
     hooks,
     agent: provider,
   } = options;
+  const prompt =
+    optionPrompt ??
+    (promptFile === undefined ? provider.defaultPrompt : undefined);
 
   // Derive branch strategy: explicit option > default based on provider tag
   const branchStrategy: BranchStrategy =

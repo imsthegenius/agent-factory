@@ -23,6 +23,7 @@
 
 import * as narukami from "@yae-tools/narukami-shrine";
 import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import { execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -42,12 +43,20 @@ const hooks = {
 // can break native packages such as esbuild when the host is macOS/Windows.
 const copyToWorktree: string[] = [];
 
+// Codex review has built-in review instructions, so no prompt is needed by
+// default. Set this to "./.narukami/review-prompt.md" to add custom review
+// instructions, or when using a general agent provider for review.
+const reviewPromptFile: string | undefined = undefined;
+
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+  const reviewBase = execSync("git rev-parse HEAD", {
+    encoding: "utf8",
+  }).trim();
 
   // -------------------------------------------------------------------------
   // Phase 1: Plan
@@ -134,11 +143,18 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           const review = await sandbox.run({
             name: "reviewer",
             maxIterations: 1,
-            agent: narukami.claudeCode("claude-sonnet-4-6"),
-            promptFile: "./.narukami/review-prompt.md",
-            promptArgs: {
-              BRANCH: issue.branch,
-            },
+            agent: narukami.codexReview("gpt-5.5", {
+              effort: "low",
+              base: reviewBase,
+            }),
+            ...(reviewPromptFile === undefined
+              ? {}
+              : {
+                  promptFile: reviewPromptFile,
+                  promptArgs: {
+                    BRANCH: issue.branch,
+                  },
+                }),
           });
 
           // Merge commits from both runs so the merge phase sees all of them.

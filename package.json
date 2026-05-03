@@ -40,6 +40,7 @@
     "postbuild": "rm -rf dist/templates && cp -r src/templates dist/templates",
     "test": "vitest run",
     "test:watch": "vitest",
+    "dev": "tsx src/main.ts",
     "typecheck": "tsgo --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -4,7 +4,8 @@ export type ParsedStreamEvent =
   | { type: "tool_call"; name: string; args: string }
   | { type: "session_id"; sessionId: string };
 
-const shellEscape = (s: string): string => "'" + s.replace(/'/g, "'\\''") + "'";
+const shellEscape = (s: string): string =>
+  "'" + s.replaceAll("'", String.raw`'\''`) + "'";
 
 /** Maps allowlisted tool names to the input field containing the display arg */
 const TOOL_ARG_FIELDS: Record<string, string> = {
@@ -116,6 +117,8 @@ export interface AgentProvider {
   readonly name: string;
   /** Environment variables injected by this agent provider. Merged at launch time with env resolver and sandbox provider env. */
   readonly env: Record<string, string>;
+  /** Optional prompt used when a run is started without prompt or promptFile. */
+  readonly defaultPrompt?: string;
   /** When true, session capture is enabled for this provider. Default: true for Claude Code, false for others. */
   readonly captureSessions: boolean;
   buildPrintCommand(options: AgentCommandOptions): PrintCommand;
@@ -273,6 +276,9 @@ export interface CodexOptions {
   readonly env?: Record<string, string>;
 }
 
+const codexEffortFlag = (effort: CodexOptions["effort"] | undefined): string =>
+  effort ? ` -c ${shellEscape(`model_reasoning_effort="${effort}"`)}` : "";
+
 export const codex = (
   model: string,
   options?: CodexOptions,
@@ -282,9 +288,7 @@ export const codex = (
   captureSessions: false,
 
   buildPrintCommand({ prompt }: AgentCommandOptions): PrintCommand {
-    const effortFlag = options?.effort
-      ? ` -c ${shellEscape(`model_reasoning_effort="${options.effort}"`)}`
-      : "";
+    const effortFlag = codexEffortFlag(options?.effort);
     return {
       command: `codex exec --json --dangerously-bypass-approvals-and-sandbox -m ${shellEscape(model)}${effortFlag}`,
       stdin: prompt,
@@ -299,6 +303,70 @@ export const codex = (
 
   parseStreamLine(line: string): ParsedStreamEvent[] {
     return parseCodexStreamLine(line);
+  },
+});
+
+export interface CodexReviewOptions extends CodexOptions {
+  /** Review changes against the given base branch or SHA. */
+  readonly base?: string;
+  /** Review staged, unstaged, and untracked changes. */
+  readonly uncommitted?: boolean;
+  /** Review the changes introduced by a commit. */
+  readonly commit?: string;
+  /** Optional title shown in Codex's review summary. */
+  readonly title?: string;
+}
+
+const parsePlainTextStreamLine = (line: string): ParsedStreamEvent[] =>
+  line ? [{ type: "text", text: `${line}\n` }] : [];
+
+/**
+ * Uses Codex CLI's built-in non-interactive review preset (`codex review`).
+ *
+ * This is intentionally separate from `codex()`: normal Codex runs use
+ * `codex exec --json`, while review runs use Codex's review-specific prompt
+ * and diff selection machinery.
+ */
+export const codexReview = (
+  model: string,
+  options?: CodexReviewOptions,
+): AgentProvider => ({
+  name: "codex-review",
+  env: options?.env ?? {},
+  defaultPrompt: "",
+  captureSessions: false,
+
+  buildPrintCommand({ prompt }: AgentCommandOptions): PrintCommand {
+    const effortFlag = codexEffortFlag(options?.effort);
+    const baseFlag = options?.base
+      ? ` --base ${shellEscape(options.base)}`
+      : "";
+    const uncommittedFlag = options?.uncommitted ? " --uncommitted" : "";
+    const commitFlag = options?.commit
+      ? ` --commit ${shellEscape(options.commit)}`
+      : "";
+    const titleFlag = options?.title
+      ? ` --title ${shellEscape(options.title)}`
+      : "";
+
+    return {
+      command: `codex -m ${shellEscape(model)}${effortFlag} review${baseFlag}${uncommittedFlag}${commitFlag}${titleFlag} -`,
+      stdin: prompt,
+    };
+  },
+
+  buildInteractiveArgs({ prompt }: AgentCommandOptions): string[] {
+    const args = ["codex", "--model", model, "review"];
+    if (options?.base) args.push("--base", options.base);
+    if (options?.uncommitted) args.push("--uncommitted");
+    if (options?.commit) args.push("--commit", options.commit);
+    if (options?.title) args.push("--title", options.title);
+    if (prompt) args.push(prompt);
+    return args;
+  },
+
+  parseStreamLine(line: string): ParsedStreamEvent[] {
+    return parsePlainTextStreamLine(line);
   },
 });
 

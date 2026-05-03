@@ -116,7 +116,10 @@ export const interactive = async (
   // If signal is already aborted, reject immediately without any setup
   options.signal?.throwIfAborted();
 
-  const { prompt, promptFile, hooks, agent: provider } = options;
+  const { prompt: optionPrompt, promptFile, hooks, agent: provider } = options;
+  const prompt =
+    optionPrompt ??
+    (promptFile === undefined ? provider.defaultPrompt : undefined);
 
   const resolvedSandbox = options.sandbox ?? noSandbox();
 
