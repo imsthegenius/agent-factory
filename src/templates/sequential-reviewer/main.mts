@@ -18,6 +18,7 @@
 
 import * as narukami from "@yae-tools/narukami-shrine";
 import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import { execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -43,6 +44,9 @@ const copyToWorktree: string[] = [];
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+  const reviewBase = execSync("git rev-parse HEAD", {
+    encoding: "utf8",
+  }).trim();
 
   // -------------------------------------------------------------------------
   // Phase 1: Implement
@@ -79,23 +83,22 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 2: Review
   //
-  // A second agent reviews the diff of the branch produced by Phase 1.
-  // It uses the {{BRANCH}} prompt argument to inspect the right branch, and
-  // either approves or makes corrections directly on the branch.
+  // A second agent reviews the commits produced by Phase 1, using the
+  // pre-implementation HEAD as the review base. It runs on its own temporary
+  // branch and Narukami merges reviewer fixes back into the current branch.
   // -------------------------------------------------------------------------
   await narukami.run({
     hooks,
     copyToWorktree,
     sandbox: docker(),
-    branchStrategy: { type: "branch", branch },
+    branchStrategy: { type: "merge-to-head" },
     name: "reviewer",
     maxIterations: 1,
     agent: narukami.claudeCode("claude-sonnet-4-6"),
     promptFile: "./.narukami/review-prompt.md",
-    // Prompt arguments substitute {{BRANCH}} in review-prompt.md before the
-    // agent sees the prompt.
     promptArgs: {
       BRANCH: branch,
+      REVIEW_BASE: reviewBase,
     },
   });
 

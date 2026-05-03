@@ -1181,6 +1181,37 @@ npm test         # Run tests with vitest
 npm run typecheck # Type-check
 ```
 
+## Releasing
+
+Narukami Shrine uses Changesets for version bumps, then a local release script
+publishes npm and creates or updates the matching GitHub Release with an npm
+link.
+
+```bash
+npx changeset
+npm run release:version
+git add .
+git commit -m "Version Packages"
+npm run release
+```
+
+`npm run release` checks formatting, type checking, tests, build, and
+`npm pack --dry-run`; publishes `@yae-tools/narukami-shrine@<version>` if that
+version is not already on npm; pushes `v<version>`; then creates or updates the
+GitHub Release notes with a version-specific npm package link.
+
+If npm is already published and only the GitHub Release needs repair:
+
+```bash
+npm run release:github
+```
+
+The GitHub Actions release workflow still opens Changesets version PRs on
+`main`. When a version PR is merged, it publishes through
+`npm run release:changesets` and then runs `npm run release:github` so the
+GitHub Release points back to npm. Configure `NPM_TOKEN` for npm publishing, or
+use npm trusted publishing for this repository.
+
 ## License
 
 MIT

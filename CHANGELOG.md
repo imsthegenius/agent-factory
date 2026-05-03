@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.1
+
+### Patch Changes
+
+- Fix sequential reviewer worktree collisions and add release automation.
+
 ## 0.5.7
 
 ### Patch Changes

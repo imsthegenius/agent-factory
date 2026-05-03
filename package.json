@@ -1,6 +1,6 @@
 {
   "name": "@yae-tools/narukami-shrine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for orchestrating AI agents in isolated sandbox environments",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,7 +44,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "release": "changeset publish",
+    "release": "node scripts/publish-release.mjs",
+    "release:changesets": "changeset publish",
+    "release:github": "node scripts/publish-release.mjs --github-only",
+    "release:version": "changeset version",
     "narukami": "npm run build && tsx .narukami/run.ts",
     "test-podman": "npm run build && tsx --env-file=.narukami/.env .narukami/test-podman.ts",
     "test-vercel": "npm run build && tsx --env-file=.narukami/.env .narukami/test-vercel.ts",
@@ -60,7 +63,7 @@
   "packageManager": "npm@10.9.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yae-tools/narukami-shrine"
+    "url": "https://github.com/azula9713/narukami-shrine.git"
   },
   "license": "MIT",
   "devDependencies": {

@@ -1,16 +1,16 @@
 # TASK
 
-Review the code changes on branch `{{BRANCH}}` and improve code clarity, consistency, and maintainability while preserving exact functionality.
+Review the code changes merged into branch `{{BRANCH}}` since `{{REVIEW_BASE}}` and improve code clarity, consistency, and maintainability while preserving exact functionality.
 
 # CONTEXT
 
 ## Branch diff
 
-!`git diff {{SOURCE_BRANCH}}...{{BRANCH}}`
+!`git diff {{REVIEW_BASE}}...HEAD`
 
 ## Commits on this branch
 
-!`git log {{SOURCE_BRANCH}}..{{BRANCH}} --oneline`
+!`git log {{REVIEW_BASE}}..HEAD --oneline`
 
 # REVIEW PROCESS
 
@@ -46,7 +46,7 @@ Review the code changes on branch `{{BRANCH}}` and improve code clarity, consist
 
 If you find improvements to make:
 
-1. Make the changes directly on this branch
+1. Make the changes directly in this sandbox branch; Narukami Shrine will merge reviewer fixes back into `{{BRANCH}}`
 2. Run tests and type checking to ensure nothing is broken
 3. Commit describing the refinements
 

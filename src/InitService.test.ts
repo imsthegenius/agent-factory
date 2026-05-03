@@ -551,7 +551,7 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("review-prompt.md");
     });
 
-    it("main.mts passes branch from implement result to review run", async () => {
+    it("main.mts reviews merge-to-head changes from the pre-implementation base", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -559,7 +559,13 @@ describe("InitService scaffold", () => {
         join(dir, ".narukami", "main.mts"),
         "utf-8",
       );
-      expect(mainTs).toContain("branch");
+      expect(mainTs).toContain('execSync("git rev-parse HEAD"');
+      expect(mainTs).toContain('branchStrategy: { type: "merge-to-head" }');
+      expect(mainTs).not.toContain(
+        'branchStrategy: { type: "branch", branch }',
+      );
+      expect(mainTs).toContain("REVIEW_BASE: reviewBase");
+      expect(mainTs).toContain("BRANCH: branch");
     });
 
     it("implement-prompt.md contains issue selection and closure, not prompt argument placeholders", async () => {
@@ -576,7 +582,7 @@ describe("InitService scaffold", () => {
       expect(prompt).not.toContain("{{BRANCH}}");
     });
 
-    it("review-prompt.md contains {{BRANCH}} prompt argument", async () => {
+    it("review-prompt.md contains branch and review base prompt arguments", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -585,6 +591,7 @@ describe("InitService scaffold", () => {
         "utf-8",
       );
       expect(prompt).toContain("{{BRANCH}}");
+      expect(prompt).toContain("{{REVIEW_BASE}}");
     });
 
     it("sequential-reviewer appears in listTemplates()", async () => {
@@ -618,7 +625,7 @@ describe("InitService scaffold", () => {
       expect(prompt).toContain("@.narukami/CODING_STANDARDS.md");
     });
 
-    it("review-prompt.md uses {{SOURCE_BRANCH}} instead of hardcoded main", async () => {
+    it("review-prompt.md uses {{REVIEW_BASE}} instead of hardcoded main or the reviewer temp branch", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -626,8 +633,10 @@ describe("InitService scaffold", () => {
         join(dir, ".narukami", "review-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("git diff {{SOURCE_BRANCH}}...{{BRANCH}}");
-      expect(prompt).toContain("git log {{SOURCE_BRANCH}}..{{BRANCH}}");
+      expect(prompt).toContain("git diff {{REVIEW_BASE}}...HEAD");
+      expect(prompt).toContain("git log {{REVIEW_BASE}}..HEAD");
+      expect(prompt).not.toContain("git diff {{SOURCE_BRANCH}}");
+      expect(prompt).not.toContain("git log {{SOURCE_BRANCH}}");
       expect(prompt).not.toContain("git diff main");
       expect(prompt).not.toContain("git log main");
     });
