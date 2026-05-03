@@ -348,10 +348,11 @@ export const codexReview = (
     const titleFlag = options?.title
       ? ` --title ${shellEscape(options.title)}`
       : "";
+    const promptArg = prompt ? " -" : "";
 
     return {
-      command: `codex -m ${shellEscape(model)}${effortFlag} review${baseFlag}${uncommittedFlag}${commitFlag}${titleFlag} -`,
-      stdin: prompt,
+      command: `codex -m ${shellEscape(model)}${effortFlag} review${baseFlag}${uncommittedFlag}${commitFlag}${titleFlag}${promptArg}`,
+      stdin: prompt || undefined,
     };
   },
 

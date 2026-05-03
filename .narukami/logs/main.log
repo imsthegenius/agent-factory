@@ -318,3 +318,43 @@ Collecting commits
 Collecting commits done (0.0s)
 Reached max iterations (1).
 Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-03T10:16:32.914Z ---
+Narukami Shrine Run
+  Agent: claude-code
+  Sandbox: test
+  Max iterations: 1
+  Branch: main
+Failed to resolve prompt: promptArgs is only supported with promptFile. Inline prompts (prompt: "...") are passed to the agent as-is — interpolate values directly in JavaScript, or switch to promptFile to use {{KEY}} substitution.
+
+--- Run started: 2026-05-03T10:16:32.957Z ---
+Narukami Shrine Run
+  Agent: claude-code
+  Sandbox: test
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+Setting up sandbox done (0.0s)
+Agent started
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-03T10:16:33.087Z ---
+Narukami Shrine Run
+  Agent: claude-code
+  Sandbox: test
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+Setting up sandbox done (0.0s)
+Agent started
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.

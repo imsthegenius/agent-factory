@@ -718,6 +718,13 @@ describe("codexReview factory", () => {
     expect(stdin).toBe("review this");
   });
 
+  it("buildPrintCommand omits the stdin prompt sentinel when no instructions are provided", () => {
+    const provider = codexReview("gpt-5.5", { base: "main" });
+    const { command, stdin } = provider.buildPrintCommand(opts(""));
+    expect(command).toBe("codex -m 'gpt-5.5' review --base 'main'");
+    expect(stdin).toBeUndefined();
+  });
+
   it("buildPrintCommand includes review selector flags", () => {
     const provider = codexReview("gpt-5.5", {
       base: "main",
