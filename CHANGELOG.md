@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.3
+
+### Patch Changes
+
+- Fixed review mode issues
+
 ## 0.1.2
 
 ### Patch Changes
