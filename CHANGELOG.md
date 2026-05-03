@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.2
+
+### Patch Changes
+
+- Added codex reviewer support
+
 ## 0.1.1
 
 ### Patch Changes
