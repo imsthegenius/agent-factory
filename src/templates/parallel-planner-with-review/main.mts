@@ -48,6 +48,11 @@ const copyToWorktree: string[] = [];
 // instructions, or when using a general agent provider for review.
 const reviewPromptFile: string | undefined = undefined;
 
+const hasReviewFindings = (stdout: string): boolean =>
+  /^Review comment:/m.test(stdout) ||
+  /^\s*-\s*\[P[0-3]\]/m.test(stdout) ||
+  /::code-comment\{/.test(stdout);
+
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
@@ -156,6 +161,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                   },
                 }),
           });
+
+          if (hasReviewFindings(review.stdout) && !review.commits.length) {
+            throw new Error(
+              `Reviewer reported findings for ${issue.id} but did not commit fixes. Check the reviewer log before merging.`,
+            );
+          }
 
           // Merge commits from both runs so the merge phase sees all of them.
           // Each sandbox.run() only returns commits from its own run.

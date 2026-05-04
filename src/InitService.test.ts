@@ -567,6 +567,35 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("base: reviewBase");
     });
 
+    it("main.mts stops the outer loop when implementer completes with no commits", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain("implement.completionSignal !== undefined");
+      expect(mainTs).toContain("no actionable work");
+      expect(mainTs).toContain("break;");
+      expect(mainTs).toContain("continue;");
+    });
+
+    it("main.mts fails when reviewer reports findings without committing fixes", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "sequential-reviewer" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain("const hasReviewFindings");
+      expect(mainTs).toContain("const review = await narukami.run");
+      expect(mainTs).toContain("hasReviewFindings(review.stdout)");
+      expect(mainTs).toContain("!review.commits.length");
+      expect(mainTs).toContain("Reviewer reported findings");
+    });
+
     it("defaults Codex agents to built-in Codex review without enabling reviewPromptFile", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
@@ -1158,6 +1187,20 @@ describe("InitService scaffold", () => {
       // Commits from both implementer and reviewer must be merged
       expect(mainTs).toContain("implement.commits");
       expect(mainTs).toContain("review.commits");
+    });
+
+    it("main.mts fails a branch when reviewer reports findings without fixes", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "parallel-planner-with-review" });
+
+      const mainTs = await readFile(
+        join(dir, ".narukami", "main.mts"),
+        "utf-8",
+      );
+      expect(mainTs).toContain("const hasReviewFindings");
+      expect(mainTs).toContain("hasReviewFindings(review.stdout)");
+      expect(mainTs).toContain("!review.commits.length");
+      expect(mainTs).toContain("Reviewer reported findings for");
     });
 
     it("main.mts uses Promise.allSettled for parallel execution", async () => {

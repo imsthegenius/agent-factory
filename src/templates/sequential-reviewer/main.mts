@@ -43,6 +43,11 @@ const copyToWorktree: string[] = [];
 // instructions, or when using a general agent provider for review.
 const reviewPromptFile: string | undefined = undefined;
 
+const hasReviewFindings = (stdout: string): boolean =>
+  /^Review comment:/m.test(stdout) ||
+  /^\s*-\s*\[P[0-3]\]/m.test(stdout) ||
+  /::code-comment\{/.test(stdout);
+
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
@@ -78,6 +83,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const branch = implement.branch;
 
   if (!implement.commits.length) {
+    if (implement.completionSignal !== undefined) {
+      console.log(
+        "Implementation agent reported no actionable work. Stopping.",
+      );
+      break;
+    }
     console.log("Implementation agent made no commits. Skipping review.");
     continue;
   }
@@ -92,7 +103,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // pre-implementation HEAD as the review base. It runs on its own temporary
   // branch and Narukami merges reviewer fixes back into the current branch.
   // -------------------------------------------------------------------------
-  await narukami.run({
+  const review = await narukami.run({
     hooks,
     copyToWorktree,
     sandbox: docker(),
@@ -113,6 +124,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           },
         }),
   });
+
+  if (hasReviewFindings(review.stdout) && !review.commits.length) {
+    throw new Error(
+      "Reviewer reported findings but did not commit fixes. Check the reviewer log before continuing.",
+    );
+  }
 
   console.log("\nReview complete.");
 }
