@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="Narukami Shrine logo" width="180">
+</p>
+
 # Narukami Shrine
 
 ## What Is Narukami Shrine?
