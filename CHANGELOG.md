@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.4
+
+### Patch Changes
+
+- Fixed loop running till iterations are completed in review mode"
+
 ## 0.1.3
 
 ### Patch Changes
