@@ -71,6 +71,7 @@ RUN apt-get update && apt-get install -y \\
   git \\
   curl \\
   jq \\
+  ripgrep \\
   && rm -rf /var/lib/apt/lists/*
 
 {{ISSUE_PROVIDER_TOOLS}}
@@ -104,6 +105,7 @@ RUN apt-get update && apt-get install -y \\
   git \\
   curl \\
   jq \\
+  ripgrep \\
   && rm -rf /var/lib/apt/lists/*
 
 {{ISSUE_PROVIDER_TOOLS}}
@@ -135,6 +137,7 @@ RUN apt-get update && apt-get install -y \\
   git \\
   curl \\
   jq \\
+  ripgrep \\
   && rm -rf /var/lib/apt/lists/*
 
 {{ISSUE_PROVIDER_TOOLS}}
@@ -166,6 +169,7 @@ RUN apt-get update && apt-get install -y \\
   git \\
   curl \\
   jq \\
+  ripgrep \\
   && rm -rf /var/lib/apt/lists/*
 
 {{ISSUE_PROVIDER_TOOLS}}

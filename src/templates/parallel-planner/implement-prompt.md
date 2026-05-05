@@ -35,7 +35,7 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Before committing, run the repo-defined quality gates. Prefer project docs or package scripts such as `npm run typecheck`, `npm run test`, `pnpm test`, `pnpm lint`, or the repo's dedicated verification script. If a scanner reports success while indexing zero files, treat that as inconclusive rather than passed.
 
 # COMMIT
 
@@ -48,6 +48,8 @@ Make a git commit. The commit message must:
 5. Blockers or notes for next iteration
 
 Keep it concise.
+
+Avoid `git commit --no-verify`. If commit hooks are blocked by the sandbox environment after the repo-defined gates pass, record the reason in the commit message and final notes.
 
 # THE ISSUE
 

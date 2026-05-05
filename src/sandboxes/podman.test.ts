@@ -145,6 +145,36 @@ describe("podman()", () => {
     expect(provider.env).toEqual({ MY_VAR: "hello" });
   });
 
+  it("sets writable runtime env and common JS tool defaults", async () => {
+    mockPodmanSuccess();
+
+    const provider = podman();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const runArgs = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "run",
+    )?.[1] as string[];
+
+    expect(runArgs).toContain("GIT_CONFIG_GLOBAL=/tmp/.gitconfig");
+    expect(runArgs).toContain("COREPACK_HOME=/tmp/corepack");
+    expect(runArgs).toContain("PNPM_HOME=/tmp/pnpm");
+    expect(runArgs).toContain("XDG_CACHE_HOME=/tmp/.cache");
+    expect(runArgs).toContain("TURBO_CACHE_DIR=.turbo/cache");
+    expect(runArgs).toContain("TURBO_CONCURRENCY=1");
+    expect(runArgs).toContain("NEXT_TELEMETRY_DISABLED=1");
+    expect(runArgs).toContain("EXPO_NO_TELEMETRY=1");
+    expect(runArgs).toContain("HOME=/home/agent");
+
+    await handle.close();
+  });
+
   it("defaults env to empty object when not provided", () => {
     const provider = podman();
     expect(provider.env).toEqual({});

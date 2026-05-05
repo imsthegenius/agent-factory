@@ -143,6 +143,10 @@ describe("docker()", () => {
     expect(runArgs).toContain("COREPACK_HOME=/tmp/corepack");
     expect(runArgs).toContain("PNPM_HOME=/tmp/pnpm");
     expect(runArgs).toContain("XDG_CACHE_HOME=/tmp/.cache");
+    expect(runArgs).toContain("TURBO_CACHE_DIR=.turbo/cache");
+    expect(runArgs).toContain("TURBO_CONCURRENCY=1");
+    expect(runArgs).toContain("NEXT_TELEMETRY_DISABLED=1");
+    expect(runArgs).toContain("EXPO_NO_TELEMETRY=1");
     expect(runArgs).toContain("HOME=/home/agent");
 
     await handle.close();

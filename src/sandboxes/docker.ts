@@ -32,6 +32,10 @@ const WRITABLE_RUNTIME_ENV = {
   COREPACK_HOME: "/tmp/corepack",
   PNPM_HOME: "/tmp/pnpm",
   XDG_CACHE_HOME: "/tmp/.cache",
+  TURBO_CACHE_DIR: ".turbo/cache",
+  TURBO_CONCURRENCY: "1",
+  NEXT_TELEMETRY_DISABLED: "1",
+  EXPO_NO_TELEMETRY: "1",
 };
 
 export interface DockerOptions {
