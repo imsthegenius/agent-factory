@@ -15,7 +15,7 @@ import {
   type RunOptions,
   type RunResult,
 } from "./run.js";
-import { claudeCode } from "./AgentProvider.js";
+import { claudeCode, codex } from "./AgentProvider.js";
 import { defaultImageName } from "./sandboxes/docker.js";
 import * as narukami from "./SandboxProvider.js";
 import { createBindMountSandboxProvider } from "./SandboxProvider.js";
@@ -433,6 +433,18 @@ describe("resumeSession validation", () => {
         resumeSession: "abc-123",
       }),
     ).rejects.toThrow('resumeSession "abc-123" not found');
+  });
+
+  it("does not require a host session file for native Codex resume", async () => {
+    await expect(
+      run({
+        agent: codex("gpt-5.4-mini"),
+        sandbox: testSandbox,
+        prompt: "continue",
+        branchStrategy: { type: "head" },
+        resumeSession: "0199a213-81c0-7800-8aa1-bbab2a035a53",
+      }),
+    ).resolves.toMatchObject({ stdout: "" });
   });
 });
 

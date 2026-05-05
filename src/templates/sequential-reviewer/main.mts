@@ -28,6 +28,10 @@ import { execSync } from "node:child_process";
 // Each cycle works on one issue. Raise this to process more issues per run.
 const MAX_ITERATIONS = 10;
 
+// Maximum self-healing attempts when review reports findings but produces no
+// fix commit. Keep this bounded so a stubborn review issue does not spin forever.
+const MAX_REPAIR_ATTEMPTS = 3;
+
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
@@ -47,6 +51,21 @@ const hasReviewFindings = (stdout: string): boolean =>
   /^Review comment:/m.test(stdout) ||
   /^\s*-\s*\[P[0-3]\]/m.test(stdout) ||
   /::code-comment\{/.test(stdout);
+
+const repairPrompt = (
+  reviewStdout: string,
+  previousFindings: string[],
+): string => `The reviewer found issues in the current branch but did not commit fixes.
+
+Address the findings below directly in this repo. Keep the scope limited to review feedback, run the repo-defined checks that fit the change, and commit the fix with a NARUKAMI-prefixed message.
+
+Previous review findings from this repair loop:
+
+${previousFindings.length === 0 ? "None yet." : previousFindings.map((finding, index) => `Attempt ${index + 1}:\n${finding}`).join("\n\n")}
+
+Latest reviewer output:
+
+${reviewStdout}`;
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -75,7 +94,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     branchStrategy: { type: "merge-to-head" },
     name: "implementer",
     maxIterations: 100,
-    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    agent: narukami.codex("gpt-5.5", { effort: "low" }),
     promptFile: "./.narukami/implement-prompt.md",
   });
 
@@ -95,6 +114,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
   console.log(`\nImplementation complete on branch: ${branch}`);
   console.log(`Commits: ${implement.commits.length}`);
+  const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
+  let repairResumeSession =
+    repairAgent.name === "codex"
+      ? implement.iterations.at(-1)?.sessionId
+      : undefined;
 
   // -------------------------------------------------------------------------
   // Phase 2: Review
@@ -103,7 +127,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // pre-implementation HEAD as the review base. It runs on its own temporary
   // branch and Narukami merges reviewer fixes back into the current branch.
   // -------------------------------------------------------------------------
-  const review = await narukami.run({
+  let review = await narukami.run({
     hooks,
     copyToWorktree,
     sandbox: docker(),
@@ -125,9 +149,71 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         }),
   });
 
-  if (hasReviewFindings(review.stdout) && !review.commits.length) {
+  const previousReviewFindings: string[] = [];
+  for (
+    let repairAttempt = 1;
+    hasReviewFindings(review.stdout) &&
+    review.commits.length === 0 &&
+    repairAttempt <= MAX_REPAIR_ATTEMPTS;
+    repairAttempt++
+  ) {
+    console.log(
+      `\nReviewer reported findings without fixes. Running repair attempt ${repairAttempt}/${MAX_REPAIR_ATTEMPTS}.`,
+    );
+
+    const priorFindings = [...previousReviewFindings];
+    previousReviewFindings.push(review.stdout);
+
+    const repair = await narukami.run({
+      hooks,
+      copyToWorktree,
+      sandbox: docker(),
+      branchStrategy: { type: "merge-to-head" },
+      name: "repairer",
+      maxIterations: repairResumeSession ? 1 : 20,
+      agent: repairAgent,
+      prompt: repairPrompt(review.stdout, priorFindings),
+      ...(repairResumeSession === undefined
+        ? {}
+        : { resumeSession: repairResumeSession }),
+    });
+
+    if (!repair.commits.length) {
+      throw new Error(
+        "Repair agent did not commit fixes for reviewer findings. Check the reviewer and repairer logs before continuing.",
+      );
+    }
+    if (repairAgent.name === "codex") {
+      repairResumeSession =
+        repair.iterations.at(-1)?.sessionId ?? repairResumeSession;
+    }
+
+    review = await narukami.run({
+      hooks,
+      copyToWorktree,
+      sandbox: docker(),
+      branchStrategy: { type: "merge-to-head" },
+      name: "reviewer",
+      maxIterations: 1,
+      agent: narukami.codexReview("gpt-5.5", {
+        effort: "low",
+        base: reviewBase,
+      }),
+      ...(reviewPromptFile === undefined
+        ? {}
+        : {
+            promptFile: reviewPromptFile,
+            promptArgs: {
+              BRANCH: branch,
+              REVIEW_BASE: reviewBase,
+            },
+          }),
+    });
+  }
+
+  if (hasReviewFindings(review.stdout) && review.commits.length === 0) {
     throw new Error(
-      "Reviewer reported findings but did not commit fixes. Check the reviewer log before continuing.",
+      "Reviewer still reports findings after repair attempts. Check the reviewer and repairer logs before continuing.",
     );
   }
 

@@ -584,7 +584,7 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("continue;");
     });
 
-    it("main.mts fails when reviewer reports findings without committing fixes", async () => {
+    it("main.mts runs a bounded repair pass when reviewer reports findings without fixes", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -593,10 +593,19 @@ describe("InitService scaffold", () => {
         "utf-8",
       );
       expect(mainTs).toContain("const hasReviewFindings");
-      expect(mainTs).toContain("const review = await narukami.run");
+      expect(mainTs).toContain("let review = await narukami.run");
       expect(mainTs).toContain("hasReviewFindings(review.stdout)");
-      expect(mainTs).toContain("!review.commits.length");
-      expect(mainTs).toContain("Reviewer reported findings");
+      expect(mainTs).toContain("MAX_REPAIR_ATTEMPTS");
+      expect(mainTs).toContain("const MAX_REPAIR_ATTEMPTS = 3");
+      expect(mainTs).toContain('name: "repairer"');
+      expect(mainTs).toContain("previousReviewFindings");
+      expect(mainTs).toContain("repairResumeSession");
+      expect(mainTs).toContain("resumeSession: repairResumeSession");
+      expect(mainTs).toContain('repairAgent.name === "codex"');
+      expect(mainTs).toContain("priorFindings");
+      expect(mainTs).toContain("repairPrompt(review.stdout, priorFindings)");
+      expect(mainTs).toContain("Repair agent did not commit fixes");
+      expect(mainTs).toContain("Reviewer still reports findings");
     });
 
     it("defaults Codex agents to built-in Codex review without enabling reviewPromptFile", async () => {
@@ -1186,13 +1195,13 @@ describe("InitService scaffold", () => {
         "utf-8",
       );
       // Reviewer result must be captured, not discarded
-      expect(mainTs).toContain("const review = await sandbox.run");
+      expect(mainTs).toContain("let review = await sandbox.run");
       // Commits from both implementer and reviewer must be merged
       expect(mainTs).toContain("implement.commits");
       expect(mainTs).toContain("review.commits");
     });
 
-    it("main.mts fails a branch when reviewer reports findings without fixes", async () => {
+    it("main.mts runs a bounded repair pass when reviewer reports findings without fixes", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "parallel-planner-with-review" });
 
@@ -1202,8 +1211,20 @@ describe("InitService scaffold", () => {
       );
       expect(mainTs).toContain("const hasReviewFindings");
       expect(mainTs).toContain("hasReviewFindings(review.stdout)");
-      expect(mainTs).toContain("!review.commits.length");
-      expect(mainTs).toContain("Reviewer reported findings for");
+      expect(mainTs).toContain("MAX_REPAIR_ATTEMPTS");
+      expect(mainTs).toContain("const MAX_REPAIR_ATTEMPTS = 3");
+      expect(mainTs).toContain('name: "repairer"');
+      expect(mainTs).toContain("previousReviewFindings");
+      expect(mainTs).toContain("repairResumeSession");
+      expect(mainTs).toContain("resumeSession: repairResumeSession");
+      expect(mainTs).toContain('repairAgent.name === "codex"');
+      expect(mainTs).toContain("priorFindings");
+      expect(mainTs).toContain(
+        "repairPrompt(issue, review.stdout, priorFindings)",
+      );
+      expect(mainTs).toContain("repairCommits");
+      expect(mainTs).toContain("Repair agent did not commit fixes");
+      expect(mainTs).toContain("Reviewer still reports findings");
     });
 
     it("main.mts uses Promise.allSettled for parallel execution", async () => {

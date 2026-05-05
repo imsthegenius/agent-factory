@@ -84,7 +84,7 @@ export interface CreateSandboxOptions {
 }
 
 export interface SandboxRunOptions {
-  /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")). */
+  /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })). */
   readonly agent: AgentProvider;
   /** Inline prompt string (mutually exclusive with promptFile). */
   readonly prompt?: string;
@@ -102,6 +102,8 @@ export interface SandboxRunOptions {
   readonly name?: string;
   /** Logging mode. */
   readonly logging?: LoggingOption;
+  /** Resume a prior provider-supported session by ID. Incompatible with maxIterations > 1. */
+  readonly resumeSession?: string;
   /**
    * An `AbortSignal` that cancels the run when aborted.
    *
@@ -128,7 +130,7 @@ export interface SandboxRunResult {
 }
 
 export interface SandboxInteractiveOptions {
-  /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")). */
+  /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })). */
   readonly agent: AgentProvider;
   /** Inline prompt string (mutually exclusive with promptFile). */
   readonly prompt?: string;
@@ -243,6 +245,12 @@ const buildSandboxHandle = (
         promptFile,
         maxIterations = 1,
       } = runOptions;
+      if (runOptions.resumeSession && maxIterations > 1) {
+        throw new Error(
+          "resumeSession cannot be combined with maxIterations > 1. " +
+            "Resume applies to iteration 1 only; multi-iteration resume semantics are not supported.",
+        );
+      }
       const prompt =
         optionPrompt ??
         (promptFile === undefined ? provider.defaultPrompt : undefined);
@@ -352,6 +360,7 @@ const buildSandboxHandle = (
               completionSignal: runOptions.completionSignal,
               idleTimeoutSeconds: runOptions.idleTimeoutSeconds,
               name: runOptions.name,
+              resumeSession: runOptions.resumeSession,
               signal: runOptions.signal,
               skipPromptExpansion: isInlinePrompt,
             });

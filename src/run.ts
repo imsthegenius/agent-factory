@@ -199,7 +199,7 @@ export interface Timeouts {
 }
 
 export interface RunOptions {
-  /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")) */
+  /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })) */
   readonly agent: AgentProvider;
   /** Sandbox provider (e.g. docker({ imageName: "narukami:myrepo" })). */
   readonly sandbox: SandboxProvider;
@@ -242,7 +242,7 @@ export interface RunOptions {
   /** Branch strategy — controls how the agent's changes relate to branches.
    * Defaults to { type: "head" } for bind-mount providers and { type: "merge-to-head" } for isolated providers. */
   readonly branchStrategy?: BranchStrategy;
-  /** Resume a prior Claude Code session by ID. The session JSONL must exist on the host. Incompatible with maxIterations > 1. */
+  /** Resume a prior provider-supported session by ID. File-backed providers require a host session JSONL. Incompatible with maxIterations > 1. */
   readonly resumeSession?: string;
   /**
    * An `AbortSignal` that cancels the run when aborted.
@@ -337,8 +337,9 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
     resolveCwd(options.cwd).pipe(Effect.provide(NodeContext.layer)),
   );
 
-  // Validate: resumeSession file must exist on the host
-  if (options.resumeSession) {
+  // Validate: file-backed providers must have a host session file to transfer.
+  // Native providers such as Codex resolve session IDs through their own CLI.
+  if (options.resumeSession && provider.resumeStrategy === "session-file") {
     const hStore = hostSessionStore(hostRepoDir);
     const sessionPath = hStore.sessionFilePath(options.resumeSession);
     if (!existsSync(sessionPath)) {

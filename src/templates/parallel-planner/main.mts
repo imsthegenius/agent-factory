@@ -61,7 +61,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // not write code.
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected planning agent.
-    agent: narukami.claudeCode("claude-opus-4-6"),
+    agent: narukami.codex("gpt-5.5", { effort: "low" }),
     promptFile: "./.narukami/plan-prompt.md",
   });
 
@@ -112,7 +112,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         // Give each agent plenty of room to implement and iterate on tests.
         maxIterations: 100,
         // The scaffold rewrites this placeholder to your selected implementation agent.
-        agent: narukami.claudeCode("claude-sonnet-4-6"),
+        agent: narukami.codex("gpt-5.5", { effort: "low" }),
         promptFile: "./.narukami/implement-prompt.md",
         // Prompt arguments substitute {{TASK_ID}}, {{ISSUE_TITLE}},
         // and {{BRANCH}} placeholders in implement-prompt.md before the
@@ -183,7 +183,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     name: "merger",
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected merge agent.
-    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    agent: narukami.codex("gpt-5.5", { effort: "low" }),
     promptFile: "./.narukami/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.

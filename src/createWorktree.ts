@@ -84,7 +84,7 @@ export interface CreateWorktreeOptions {
 }
 
 export interface WorktreeInteractiveOptions {
-  /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")) */
+  /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })) */
   readonly agent: AgentProvider;
   /** Sandbox provider (e.g. docker(), noSandbox()). Defaults to noSandbox(). */
   readonly sandbox?: AnySandboxProvider;
@@ -114,7 +114,7 @@ export interface WorktreeInteractiveOptions {
 }
 
 export interface WorktreeRunOptions {
-  /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")) */
+  /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })) */
   readonly agent: AgentProvider;
   /** Sandbox provider (e.g. docker()). Required — AFK agents should always be sandboxed. */
   readonly sandbox: SandboxProvider;
@@ -138,7 +138,7 @@ export interface WorktreeRunOptions {
   readonly hooks?: SandboxHooks;
   /** Environment variables to inject into the sandbox. */
   readonly env?: Record<string, string>;
-  /** Resume a prior Claude Code session by ID. The session JSONL must exist on the host. Incompatible with maxIterations > 1. */
+  /** Resume a prior provider-supported session by ID. File-backed providers require a host session JSONL. Incompatible with maxIterations > 1. */
   readonly resumeSession?: string;
   /**
    * An `AbortSignal` that cancels the run when aborted.
@@ -492,7 +492,7 @@ export const createWorktree = async (
       );
     }
 
-    if (opts.resumeSession) {
+    if (opts.resumeSession && provider.resumeStrategy === "session-file") {
       const hStore = hostSessionStore(hostRepoDir);
       const sessionPath = hStore.sessionFilePath(opts.resumeSession);
       if (!existsSync(sessionPath)) {

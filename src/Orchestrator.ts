@@ -187,7 +187,7 @@ export interface OrchestrateOptions {
   readonly name?: string;
   /** @internal Test-only override for the idle warning interval in milliseconds. Default: 60000 (1 minute). */
   readonly _idleWarningIntervalMs?: number;
-  /** Resume a prior Claude Code session by ID. Applied to iteration 1 only. */
+  /** Resume a prior provider-supported session by ID. Applied to iteration 1 only. */
   readonly resumeSession?: string;
   /** An AbortSignal that cancels the orchestration when aborted. */
   readonly signal?: AbortSignal;
@@ -197,7 +197,7 @@ export interface OrchestrateOptions {
 
 /** Per-iteration result carrying an optional session ID. */
 export interface IterationResult {
-  /** Claude Code session ID extracted from the init line, or undefined for non-Claude agents. */
+  /** Agent session ID extracted from the stream, or undefined when the provider does not emit one. */
   readonly sessionId?: string;
   /** Absolute host path to the captured session JSONL, or undefined when capture is disabled or provider is non-Claude. */
   readonly sessionFilePath?: string;
@@ -274,10 +274,15 @@ export const orchestrate = (
             },
             (ctx) =>
               Effect.gen(function* () {
-                // Resume session: transfer JSONL from host to sandbox before iteration 1
+                // File-backed providers need their session JSONL transferred before iteration 1.
+                // Native-resume providers such as Codex keep their own CLI state.
                 const iterationResumeSession =
                   i === 1 ? options.resumeSession : undefined;
-                if (iterationResumeSession && bindMountHandle) {
+                if (
+                  iterationResumeSession &&
+                  bindMountHandle &&
+                  provider.resumeStrategy === "session-file"
+                ) {
                   yield* display.status(label("Resuming session"), "info");
                   const sbStore = sandboxSessionStore(
                     ctx.sandboxRepoDir,

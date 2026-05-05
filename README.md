@@ -457,22 +457,22 @@ await sandbox.close();
 
 #### `WorktreeRunOptions`
 
-| Option               | Type                   | Default | Description                                                                                                                         |
-| -------------------- | ---------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `agent`              | AgentProvider          | —       | **Required.** Agent provider                                                                                                        |
-| `sandbox`            | SandboxProvider        | —       | **Required.** Sandbox provider (AFK agents must be sandboxed)                                                                       |
-| `prompt`             | string                 | —       | Inline prompt (mutually exclusive with `promptFile`)                                                                                |
-| `promptFile`         | string                 | —       | Path to prompt file                                                                                                                 |
-| `maxIterations`      | number                 | 1       | Maximum iterations to run                                                                                                           |
-| `completionSignal`   | string \| string[]     | —       | Substring(s) to stop the iteration loop early                                                                                       |
-| `idleTimeoutSeconds` | number                 | 600     | Idle timeout in seconds                                                                                                             |
-| `name`               | string                 | —       | Optional run name                                                                                                                   |
-| `logging`            | LoggingOption          | file    | Logging mode                                                                                                                        |
-| `hooks`              | SandboxHooks           | —       | Lifecycle hooks (`host.*`, `sandbox.*`)                                                                                             |
-| `promptArgs`         | PromptArgs             | —       | Key-value map for `{{KEY}}` placeholder substitution                                                                                |
-| `env`                | Record<string, string> | —       | Environment variables to inject into the sandbox                                                                                    |
-| `resumeSession`      | string                 | —       | Resume a prior Claude Code session by ID. Incompatible with `maxIterations > 1`. Session file must exist on host.                   |
-| `signal`             | AbortSignal            | —       | Cancel the run when aborted. Kills the in-flight agent subprocess; the worktree is preserved on disk. Rejects with `signal.reason`. |
+| Option               | Type                   | Default | Description                                                                                                                                                         |
+| -------------------- | ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent`              | AgentProvider          | —       | **Required.** Agent provider                                                                                                                                        |
+| `sandbox`            | SandboxProvider        | —       | **Required.** Sandbox provider (AFK agents must be sandboxed)                                                                                                       |
+| `prompt`             | string                 | —       | Inline prompt (mutually exclusive with `promptFile`)                                                                                                                |
+| `promptFile`         | string                 | —       | Path to prompt file                                                                                                                                                 |
+| `maxIterations`      | number                 | 1       | Maximum iterations to run                                                                                                                                           |
+| `completionSignal`   | string \| string[]     | —       | Substring(s) to stop the iteration loop early                                                                                                                       |
+| `idleTimeoutSeconds` | number                 | 600     | Idle timeout in seconds                                                                                                                                             |
+| `name`               | string                 | —       | Optional run name                                                                                                                                                   |
+| `logging`            | LoggingOption          | file    | Logging mode                                                                                                                                                        |
+| `hooks`              | SandboxHooks           | —       | Lifecycle hooks (`host.*`, `sandbox.*`)                                                                                                                             |
+| `promptArgs`         | PromptArgs             | —       | Key-value map for `{{KEY}}` placeholder substitution                                                                                                                |
+| `env`                | Record<string, string> | —       | Environment variables to inject into the sandbox                                                                                                                    |
+| `resumeSession`      | string                 | —       | Resume a prior provider-supported session by ID. Incompatible with `maxIterations > 1`; Claude requires a host session file, Codex uses native `codex exec resume`. |
+| `signal`             | AbortSignal            | —       | Cancel the run when aborted. Kills the in-flight agent subprocess; the worktree is preserved on disk. Rejects with `signal.reason`.                                 |
 
 #### `WorktreeRunResult`
 
@@ -626,6 +626,17 @@ Tell the agent to output your chosen string(s) in the prompt, and the orchestrat
 
 Select a template during `narukami init` when prompted, or re-run init in a fresh repo to try a different one.
 
+#### Review self-healing
+
+The review templates (`sequential-reviewer` and `parallel-planner-with-review`) run a bounded review → repair → review loop. If a reviewer reports findings but does not commit fixes, Narukami starts a `repairer` agent with the latest reviewer output plus prior findings from the same repair loop. The repaired branch is reviewed again, up to `MAX_REPAIR_ATTEMPTS` times. If findings remain after the cap, the run fails and points you at the reviewer/repairer logs.
+
+This behavior is template-level orchestration, not limited to Codex built-in review. It works with both review backends:
+
+- **Codex built-in review**: Codex-agent scaffolds can use `codexReview()`, which runs Codex CLI's review preset and does not require a prompt.
+- **Prompt-based review**: non-Codex agents, or Codex scaffolds configured for prompt review, use `.narukami/review-prompt.md`; their findings are parsed the same way and can trigger the same repair loop.
+
+OpenAI's Codex docs describe review feedback as guidance Codex can act on, and the Codex CLI docs show multi-stage review/fix automation with `codex exec` and `codex exec resume`. Narukami wraps that idea into the scaffolded loop so AFK runs can self-heal without requiring a human to copy review findings into a second command. When the repair agent is `codex()`, the first repair attempt resumes the implementation thread if Codex emitted a `thread_id`; later repair attempts resume the latest repair thread, preserving first-party Codex context across the fix loop.
+
 ## CLI commands
 
 ### `narukami init`
@@ -723,7 +734,7 @@ Removes a marked optional sandbox tool block from `.narukami/Dockerfile` or `.na
 | `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                                                                                         |
 | `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early                                                                                              |
 | `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                                                                                              |
-| `resumeSession`      | string             | —                             | Resume a prior Claude Code session by ID. Incompatible with `maxIterations > 1`. Session file must exist on host.                                                        |
+| `resumeSession`      | string             | —                             | Resume a prior provider-supported session by ID. Incompatible with `maxIterations > 1`; Claude requires a host session file, Codex uses native `codex exec resume`.      |
 | `signal`             | AbortSignal        | —                             | Cancel the run when aborted. Kills the in-flight agent subprocess and cancels lifecycle hooks; the worktree is preserved on disk. Rejects with `signal.reason`.          |
 | `timeouts`           | Timeouts           | —                             | Override default timeouts for built-in lifecycle steps. Currently supports `{ copyToWorktreeMs?: number }` (default: 60 000).                                            |
 
@@ -742,7 +753,7 @@ Removes a marked optional sandbox tool block from `.narukami/Dockerfile` or `.na
 
 | Field             | Type              | Description                                                                                                                         |
 | ----------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `sessionId`       | string?           | Claude Code session ID from the init line, or `undefined` for non-Claude agents                                                     |
+| `sessionId`       | string?           | Agent session ID from the stream, or `undefined` when the provider does not emit one                                                |
 | `sessionFilePath` | string?           | Absolute host path to the captured session JSONL, or `undefined` when capture is off                                                |
 | `usage`           | `IterationUsage`? | Token usage snapshot from the last assistant message, or `undefined` when capture is off or provider does not support usage parsing |
 
@@ -763,7 +774,7 @@ Session capture is enabled by default for `claudeCode()` and can be opted out vi
 
 ### Session resume
 
-Pass `resumeSession` to `run()` to continue a prior Claude Code conversation inside a new sandbox:
+Pass `resumeSession` to `run()` to continue a prior provider-supported conversation inside a new sandbox. Claude Code uses file-backed session transfer; Codex uses the CLI's native `codex exec resume <SESSION_ID>` mode.
 
 ```typescript
 const result = await run({
@@ -774,14 +785,16 @@ const result = await run({
 });
 ```
 
-Before the sandbox starts, Narukami Shrine validates that the session file exists on the host and transfers it into the sandbox with `cwd` fields rewritten to match the sandbox-side path. The Claude Code agent receives `--resume <id>` on its print command for iteration 1.
+Before the sandbox starts, Narukami Shrine validates Claude Code session files and transfers them into the sandbox with `cwd` fields rewritten to match the sandbox-side path. The Claude Code agent receives `--resume <id>` on its print command for iteration 1.
+
+For Codex, Narukami parses `thread.started` JSONL events from `codex exec --json` and stores the emitted `thread_id` on each iteration result. Passing that ID as `resumeSession` calls `codex exec resume ... <SESSION_ID>` directly; no host-side JSONL copy is required.
 
 Constraints:
 
 - `resumeSession` is incompatible with `maxIterations > 1` (throws before sandbox creation).
-- The session file must exist at `~/.claude/projects/<encoded-path>/sessions/<id>.jsonl` (throws before sandbox creation).
+- Claude Code session files must exist at `~/.claude/projects/<encoded-path>/sessions/<id>.jsonl` (throws before sandbox creation).
 - Only iteration 1 receives the resume flag; subsequent iterations (if any) start fresh.
-- Non-Claude agent providers ignore `resumeSession`.
+- Providers without a resume strategy ignore `resumeSession`.
 
 ### `ClaudeCodeOptions`
 
@@ -821,6 +834,8 @@ agent: codexReview("gpt-5.5", { effort: "low", base: "main" });
 No `prompt` or `promptFile` is required. If you provide one, it is passed to Codex as custom review instructions.
 
 During `narukami init`, review templates ask Codex-agent users whether to use this built-in review backend or the scaffolded `.narukami/review-prompt.md`. Non-Codex agents use the prompt-based reviewer by default. Either way, `review-prompt.md` is still generated so teams can switch later or layer custom review instructions onto Codex review.
+
+In the scaffolded review templates, `codexReview()` only performs the review pass. If it reports findings without producing a fix commit, Narukami invokes a separate repair agent and then runs review again. The same repair loop is used for prompt-based reviewers. If the repair agent is `codex()`, Narukami uses `codex exec resume` with the implementation or prior repair thread ID when one is available.
 
 | Option        | Type                                           | Default | Description                                               |
 | ------------- | ---------------------------------------------- | ------- | --------------------------------------------------------- |

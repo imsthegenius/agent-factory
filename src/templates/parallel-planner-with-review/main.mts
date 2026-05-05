@@ -33,6 +33,10 @@ import { execSync } from "node:child_process";
 // Raise this if your issue queue is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
+// Maximum self-healing attempts when review reports findings but produces no
+// fix commit. Keep this bounded so a stubborn review issue does not spin forever.
+const MAX_REPAIR_ATTEMPTS = 3;
+
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
@@ -52,6 +56,26 @@ const hasReviewFindings = (stdout: string): boolean =>
   /^Review comment:/m.test(stdout) ||
   /^\s*-\s*\[P[0-3]\]/m.test(stdout) ||
   /::code-comment\{/.test(stdout);
+
+const repairPrompt = (
+  issue: {
+    id: string;
+    title: string;
+    branch: string;
+  },
+  reviewStdout: string,
+  previousFindings: string[],
+): string => `The reviewer found issues for ${issue.id}: ${issue.title}, but did not commit fixes.
+
+Address the findings below directly on branch ${issue.branch}. Keep the scope limited to review feedback, run the repo-defined checks that fit the change, and commit the fix with a NARUKAMI-prefixed message.
+
+Previous review findings from this repair loop:
+
+${previousFindings.length === 0 ? "None yet." : previousFindings.map((finding, index) => `Attempt ${index + 1}:\n${finding}`).join("\n\n")}
+
+Latest reviewer output:
+
+${reviewStdout}`;
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -80,7 +104,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // not write code.
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected planning agent.
-    agent: narukami.claudeCode("claude-opus-4-6"),
+    agent: narukami.codex("gpt-5.5", { effort: "low" }),
     promptFile: "./.narukami/plan-prompt.md",
   });
 
@@ -134,7 +158,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const implement = await sandbox.run({
           name: "implementer",
           maxIterations: 100,
-          agent: narukami.claudeCode("claude-sonnet-4-6"),
+          agent: narukami.codex("gpt-5.5", { effort: "low" }),
           promptFile: "./.narukami/implement-prompt.md",
           promptArgs: {
             TASK_ID: issue.id,
@@ -145,7 +169,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
         // Only review if the implementer produced commits
         if (implement.commits.length > 0) {
-          const review = await sandbox.run({
+          const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
+          let repairResumeSession =
+            repairAgent.name === "codex"
+              ? implement.iterations.at(-1)?.sessionId
+              : undefined;
+
+          let review = await sandbox.run({
             name: "reviewer",
             maxIterations: 1,
             agent: narukami.codexReview("gpt-5.5", {
@@ -162,9 +192,66 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 }),
           });
 
-          if (hasReviewFindings(review.stdout) && !review.commits.length) {
+          const repairCommits: typeof implement.commits = [];
+          const previousReviewFindings: string[] = [];
+
+          for (
+            let repairAttempt = 1;
+            hasReviewFindings(review.stdout) &&
+            review.commits.length === 0 &&
+            repairAttempt <= MAX_REPAIR_ATTEMPTS;
+            repairAttempt++
+          ) {
+            console.log(
+              `Reviewer reported findings for ${issue.id} without fixes. Running repair attempt ${repairAttempt}/${MAX_REPAIR_ATTEMPTS}.`,
+            );
+
+            const priorFindings = [...previousReviewFindings];
+            previousReviewFindings.push(review.stdout);
+
+            const repair = await sandbox.run({
+              name: "repairer",
+              maxIterations: repairResumeSession ? 1 : 20,
+              agent: repairAgent,
+              prompt: repairPrompt(issue, review.stdout, priorFindings),
+              ...(repairResumeSession === undefined
+                ? {}
+                : { resumeSession: repairResumeSession }),
+            });
+
+            if (!repair.commits.length) {
+              throw new Error(
+                `Repair agent did not commit fixes for reviewer findings on ${issue.id}. Check the reviewer and repairer logs before merging.`,
+              );
+            }
+
+            repairCommits.push(...repair.commits);
+            if (repairAgent.name === "codex") {
+              repairResumeSession =
+                repair.iterations.at(-1)?.sessionId ?? repairResumeSession;
+            }
+
+            review = await sandbox.run({
+              name: "reviewer",
+              maxIterations: 1,
+              agent: narukami.codexReview("gpt-5.5", {
+                effort: "low",
+                base: reviewBase,
+              }),
+              ...(reviewPromptFile === undefined
+                ? {}
+                : {
+                    promptFile: reviewPromptFile,
+                    promptArgs: {
+                      BRANCH: issue.branch,
+                    },
+                  }),
+            });
+          }
+
+          if (hasReviewFindings(review.stdout) && review.commits.length === 0) {
             throw new Error(
-              `Reviewer reported findings for ${issue.id} but did not commit fixes. Check the reviewer log before merging.`,
+              `Reviewer still reports findings for ${issue.id} after repair attempts. Check the reviewer and repairer logs before merging.`,
             );
           }
 
@@ -172,7 +259,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           // Each sandbox.run() only returns commits from its own run.
           return {
             ...review,
-            commits: [...implement.commits, ...review.commits],
+            commits: [
+              ...implement.commits,
+              ...repairCommits,
+              ...review.commits,
+            ],
           };
         }
 
@@ -232,7 +323,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
-    agent: narukami.claudeCode("claude-sonnet-4-6"),
+    agent: narukami.codex("gpt-5.5", { effort: "low" }),
     promptFile: "./.narukami/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.

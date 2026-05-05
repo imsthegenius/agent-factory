@@ -121,6 +121,8 @@ export interface AgentProvider {
   readonly defaultPrompt?: string;
   /** When true, session capture is enabled for this provider. Default: true for Claude Code, false for others. */
   readonly captureSessions: boolean;
+  /** How this provider resumes sessions, if supported. */
+  readonly resumeStrategy?: "native" | "session-file";
   buildPrintCommand(options: AgentCommandOptions): PrintCommand;
   buildInteractiveArgs?(options: AgentCommandOptions): string[];
   parseStreamLine(line: string): ParsedStreamEvent[];
@@ -232,6 +234,10 @@ const parseCodexStreamLine = (line: string): ParsedStreamEvent[] => {
   try {
     const obj = JSON.parse(line);
 
+    if (obj.type === "thread.started" && typeof obj.thread_id === "string") {
+      return [{ type: "session_id", sessionId: obj.thread_id }];
+    }
+
     // item.completed with agent_message → text + result
     if (
       obj.type === "item.completed" &&
@@ -286,11 +292,18 @@ export const codex = (
   name: "codex",
   env: options?.env ?? {},
   captureSessions: false,
+  resumeStrategy: "native",
 
-  buildPrintCommand({ prompt }: AgentCommandOptions): PrintCommand {
+  buildPrintCommand({
+    prompt,
+    resumeSession,
+  }: AgentCommandOptions): PrintCommand {
     const effortFlag = codexEffortFlag(options?.effort);
+    const baseCommand = resumeSession
+      ? `codex exec resume --json --dangerously-bypass-approvals-and-sandbox -m ${shellEscape(model)}${effortFlag} ${shellEscape(resumeSession)} -`
+      : `codex exec --json --dangerously-bypass-approvals-and-sandbox -m ${shellEscape(model)}${effortFlag} -`;
     return {
-      command: `codex exec --json --dangerously-bypass-approvals-and-sandbox -m ${shellEscape(model)}${effortFlag}`,
+      command: baseCommand,
       stdin: prompt,
     };
   },
@@ -425,6 +438,7 @@ export const claudeCode = (
   name: "claude-code",
   env: options?.env ?? {},
   captureSessions: options?.captureSessions ?? true,
+  resumeStrategy: "session-file",
 
   buildPrintCommand({
     prompt,
