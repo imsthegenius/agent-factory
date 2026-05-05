@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.6
+
+### Patch Changes
+
+- Integrated first-party codex review support into loops
+
 ## 0.1.5
 
 ### Patch Changes
