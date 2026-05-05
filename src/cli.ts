@@ -22,6 +22,9 @@ import {
   getIssueProvider,
   listSandboxProviders,
   getSandboxProvider,
+  listSandboxTools,
+  getSandboxTool,
+  removeSandboxToolFromConfig,
   getNextStepsLines,
 } from "./InitService.js";
 import { defaultImageName } from "./sandboxes/docker.js";
@@ -30,6 +33,7 @@ import type {
   IssueProviderEntry,
   ReviewBackend,
   SandboxProviderEntry,
+  SandboxToolEntry,
 } from "./InitService.js";
 import { ConfigDirError, InitError } from "./errors.js";
 
@@ -90,6 +94,20 @@ const initModelOption = Options.text("model").pipe(
   Options.optional,
 );
 
+const initToolsOption = Options.text("tools").pipe(
+  Options.withDescription(
+    "Comma-separated optional sandbox tools to install (e.g. sonar-scanner)",
+  ),
+  Options.optional,
+);
+
+const sonarHostUrlOption = Options.text("sonar-host-url").pipe(
+  Options.withDescription(
+    "Prefill SONAR_HOST_URL in .narukami/.env.example when using --tools sonar-scanner",
+  ),
+  Options.optional,
+);
+
 const initCommand = Command.make(
   "init",
   {
@@ -97,12 +115,16 @@ const initCommand = Command.make(
     template: templateOption,
     agent: agentOption,
     model: initModelOption,
+    tools: initToolsOption,
+    sonarHostUrl: sonarHostUrlOption,
   },
   ({
     imageName: imageNameFlag,
     template,
     agent: agentFlag,
     model: modelFlag,
+    tools: toolsFlag,
+    sonarHostUrl: sonarHostUrlFlag,
   }) =>
     Effect.gen(function* () {
       const d = yield* Display;
@@ -187,6 +209,67 @@ const initCommand = Command.make(
           );
         }
         selectedSandboxProvider = getSandboxProvider(selected as string)!;
+      }
+
+      const optionalTools = listSandboxTools();
+      let selectedSandboxTools: SandboxToolEntry[] = [];
+      if (toolsFlag._tag === "Some") {
+        const requestedToolNames = toolsFlag.value
+          .split(",")
+          .map((tool) => tool.trim())
+          .filter((tool) => tool.length > 0);
+        for (const toolName of requestedToolNames) {
+          const tool = getSandboxTool(toolName);
+          if (!tool) {
+            const names = optionalTools.map((t) => t.name).join(", ");
+            yield* Effect.fail(
+              new InitError({
+                message: `Unknown sandbox tool "${toolName}". Available: ${names}`,
+              }),
+            );
+          } else {
+            selectedSandboxTools.push(tool);
+          }
+        }
+      } else {
+        const sonarTool = getSandboxTool("sonar-scanner")!;
+        const shouldInstallSonar = yield* Effect.promise(() =>
+          clack.confirm({
+            message:
+              "Install SonarScanner CLI in the sandbox image? (Useful if repo quality gates run sonar-scanner)",
+            initialValue: false,
+          }),
+        );
+        if (clack.isCancel(shouldInstallSonar)) {
+          yield* Effect.fail(
+            new InitError({ message: "Optional tool selection cancelled." }),
+          );
+        }
+        if (shouldInstallSonar === true) {
+          selectedSandboxTools = [sonarTool];
+        }
+      }
+
+      let sonarHostUrl =
+        sonarHostUrlFlag._tag === "Some" ? sonarHostUrlFlag.value : undefined;
+      if (
+        selectedSandboxTools.some((tool) => tool.name === "sonar-scanner") &&
+        sonarHostUrl === undefined
+      ) {
+        const entered = yield* Effect.promise(() =>
+          clack.text({
+            message:
+              "Sonar host URL for .narukami/.env.example (leave blank to fill later):",
+            placeholder: "http://host.docker.internal:9000",
+          }),
+        );
+        if (clack.isCancel(entered)) {
+          yield* Effect.fail(
+            new InitError({ message: "Sonar host URL entry cancelled." }),
+          );
+        }
+        const trimmed = String(entered).trim();
+        sonarHostUrl = trimmed.length > 0 ? trimmed : undefined;
       }
 
       // Resolve issue provider: interactive select
@@ -305,6 +388,8 @@ const initCommand = Command.make(
           createLabel: shouldCreateLabel === true,
           issueProvider: selectedIssueProvider,
           sandboxProvider: selectedSandboxProvider,
+          sandboxTools: selectedSandboxTools,
+          sonarHostUrl,
           reviewBackend,
         }).pipe(
           Effect.mapError(
@@ -501,6 +586,83 @@ const podmanCommand = Command.make("podman", {}, () =>
   Command.withSubcommands([podmanBuildImageCommand, podmanRemoveImageCommand]),
 );
 
+// --- Optional sandbox tools namespace ---
+
+const toolNameOption = Options.text("tool").pipe(
+  Options.withDescription("Optional sandbox tool name (e.g. sonar-scanner)"),
+);
+
+const rebuildOption = Options.boolean("rebuild").pipe(
+  Options.withDescription(
+    "Rebuild the detected Docker/Podman image after editing .narukami/",
+  ),
+);
+
+const removeToolCommand = Command.make(
+  "remove",
+  {
+    imageName: imageNameOption,
+    tool: toolNameOption,
+    rebuild: rebuildOption,
+  },
+  ({ imageName: imageNameFlag, tool, rebuild }) =>
+    Effect.gen(function* () {
+      const d = yield* Display;
+      const cwd = process.cwd();
+      yield* requireConfigDir(cwd);
+
+      const result = yield* d.spinner(
+        `Removing optional sandbox tool '${tool}' from .narukami/...`,
+        removeSandboxToolFromConfig(cwd, tool).pipe(
+          Effect.mapError(
+            (e) =>
+              new InitError({
+                message: `${e instanceof Error ? e.message : e}`,
+              }),
+          ),
+        ),
+      );
+
+      if (!result.changed) {
+        yield* d.status(`No '${tool}' blocks found in .narukami/.`, "info");
+        return;
+      }
+
+      yield* d.status(`Removed '${tool}' from .narukami/.`, "success");
+
+      if (rebuild) {
+        const imageName = resolveImageName(imageNameFlag, cwd);
+        const containerfileDir = join(cwd, CONFIG_DIR);
+        const fs = yield* FileSystem.FileSystem;
+        const hasContainerfile = yield* fs
+          .exists(join(containerfileDir, "Containerfile"))
+          .pipe(Effect.catchAll(() => Effect.succeed(false)));
+
+        if (hasContainerfile) {
+          yield* d.spinner(
+            `Rebuilding Podman image '${imageName}'...`,
+            podmanBuildImage(imageName, containerfileDir),
+          );
+        } else {
+          yield* d.spinner(
+            `Rebuilding Docker image '${imageName}'...`,
+            buildImage(imageName, containerfileDir),
+          );
+        }
+      }
+    }),
+);
+
+const toolsCommand = Command.make("tools", {}, () =>
+  Effect.gen(function* () {
+    const d = yield* Display;
+    yield* d.status(
+      "Optional sandbox tool commands. Use --help to see available subcommands.",
+      "info",
+    );
+  }),
+).pipe(Command.withSubcommands([removeToolCommand]));
+
 // --- Root command ---
 
 const rootCommand = Command.make("narukami", {}, () =>
@@ -512,7 +674,12 @@ const rootCommand = Command.make("narukami", {}, () =>
 );
 
 export const narukami = rootCommand.pipe(
-  Command.withSubcommands([initCommand, dockerCommand, podmanCommand]),
+  Command.withSubcommands([
+    initCommand,
+    dockerCommand,
+    podmanCommand,
+    toolsCommand,
+  ]),
 );
 
 export const cli = Command.run(narukami, {

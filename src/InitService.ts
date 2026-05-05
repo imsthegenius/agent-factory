@@ -370,6 +370,145 @@ export const getSandboxProvider = (
   SANDBOX_PROVIDER_REGISTRY.find((p) => p.name === name);
 
 // ---------------------------------------------------------------------------
+// Optional sandbox tool registry (internal — not part of public API)
+// ---------------------------------------------------------------------------
+
+export interface SandboxToolEntry {
+  readonly name: string;
+  readonly label: string;
+  readonly hint?: string;
+  readonly containerfileTools: string;
+  readonly envExample: (options: { readonly sonarHostUrl?: string }) => string;
+}
+
+const SONAR_SCANNER_TOOLS = `# narukami-tool:sonar-scanner:start
+ARG SONAR_SCANNER_VERSION=8.0.1.6346
+
+# Install SonarScanner CLI for repos whose quality gates call sonar-scanner.
+RUN set -eux; \\
+  apt-get update; \\
+  apt-get install -y unzip; \\
+  arch="$(dpkg --print-architecture)"; \\
+  case "$arch" in \\
+    amd64) scanner_arch="linux-x64" ;; \\
+    arm64) scanner_arch="linux-aarch64" ;; \\
+    *) echo "Unsupported architecture for SonarScanner CLI: $arch" >&2; exit 1 ;; \\
+  esac; \\
+  curl -fsSL \\
+    "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-\${SONAR_SCANNER_VERSION}-\${scanner_arch}.zip" \\
+    -o /tmp/sonar-scanner.zip; \\
+  unzip -q /tmp/sonar-scanner.zip -d /opt; \\
+  mv "/opt/sonar-scanner-\${SONAR_SCANNER_VERSION}-\${scanner_arch}" /opt/sonar-scanner; \\
+  ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner; \\
+  rm /tmp/sonar-scanner.zip; \\
+  rm -rf /var/lib/apt/lists/*
+# narukami-tool:sonar-scanner:end`;
+
+const SANDBOX_TOOL_REGISTRY: SandboxToolEntry[] = [
+  {
+    name: "sonar-scanner",
+    label: "SonarScanner CLI",
+    hint: "Installs sonar-scanner for SonarQube/SonarCloud quality gates",
+    containerfileTools: SONAR_SCANNER_TOOLS,
+    envExample: ({ sonarHostUrl }) => `# narukami-env:sonar-scanner:start
+# SonarScanner CLI (optional; required only if your repo quality gates run sonar-scanner)
+# For local SonarQube on Docker Desktop, try http://host.docker.internal:9000
+SONAR_HOST_URL=${sonarHostUrl ?? ""}
+SONAR_TOKEN=
+# narukami-env:sonar-scanner:end`,
+  },
+];
+
+export const listSandboxTools = (): SandboxToolEntry[] => SANDBOX_TOOL_REGISTRY;
+
+export const getSandboxTool = (name: string): SandboxToolEntry | undefined =>
+  SANDBOX_TOOL_REGISTRY.find((tool) => tool.name === name);
+
+const removeMarkedBlock = (
+  content: string,
+  markerKind: string,
+  toolName: string,
+) =>
+  content.replace(
+    new RegExp(
+      `\\n?# narukami-${markerKind}:${toolName}:start[\\s\\S]*?# narukami-${markerKind}:${toolName}:end\\n?`,
+      "g",
+    ),
+    "\n",
+  );
+
+export interface RemoveSandboxToolResult {
+  readonly containerfilePath?: string;
+  readonly envExamplePath?: string;
+  readonly changed: boolean;
+}
+
+export const removeSandboxToolFromConfig = (
+  repoDir: string,
+  toolName: string,
+): Effect.Effect<RemoveSandboxToolResult, Error, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    if (!getSandboxTool(toolName)) {
+      const names = SANDBOX_TOOL_REGISTRY.map((tool) => tool.name).join(", ");
+      yield* Effect.fail(
+        new Error(`Unknown sandbox tool "${toolName}". Available: ${names}`),
+      );
+    }
+
+    const fs = yield* FileSystem.FileSystem;
+    const configDir = join(repoDir, ".narukami");
+    const containerfileCandidates = ["Dockerfile", "Containerfile"].map(
+      (file) => join(configDir, file),
+    );
+    let changed = false;
+    let containerfilePath: string | undefined;
+
+    for (const path of containerfileCandidates) {
+      const exists = yield* fs
+        .exists(path)
+        .pipe(Effect.mapError((e) => new Error(e.message)));
+      if (!exists) continue;
+
+      const original = yield* fs
+        .readFileString(path)
+        .pipe(Effect.mapError((e) => new Error(e.message)));
+      const updated = removeMarkedBlock(original, "tool", toolName);
+      if (updated !== original) {
+        yield* fs
+          .writeFileString(path, updated)
+          .pipe(Effect.mapError((e) => new Error(e.message)));
+        changed = true;
+        containerfilePath = path;
+      }
+    }
+
+    const envExamplePath = join(configDir, ".env.example");
+    const envExists = yield* fs
+      .exists(envExamplePath)
+      .pipe(Effect.mapError((e) => new Error(e.message)));
+    let changedEnvExamplePath: string | undefined;
+    if (envExists) {
+      const original = yield* fs
+        .readFileString(envExamplePath)
+        .pipe(Effect.mapError((e) => new Error(e.message)));
+      const updated = removeMarkedBlock(original, "env", toolName);
+      if (updated !== original) {
+        yield* fs
+          .writeFileString(envExamplePath, updated)
+          .pipe(Effect.mapError((e) => new Error(e.message)));
+        changed = true;
+        changedEnvExamplePath = envExamplePath;
+      }
+    }
+
+    return {
+      containerfilePath,
+      envExamplePath: changedEnvExamplePath,
+      changed,
+    };
+  });
+
+// ---------------------------------------------------------------------------
 // Next steps
 // ---------------------------------------------------------------------------
 
@@ -645,6 +784,8 @@ export interface ScaffoldOptions {
   createLabel?: boolean;
   issueProvider?: IssueProviderEntry;
   sandboxProvider?: SandboxProviderEntry;
+  sandboxTools?: ReadonlyArray<SandboxToolEntry>;
+  sonarHostUrl?: string;
   reviewBackend?: ReviewBackend;
 }
 
@@ -657,6 +798,24 @@ export type ReviewBackend = "codex-review" | "prompt";
 const templateHasReview = (templateName: string): boolean =>
   templateName === "sequential-reviewer" ||
   templateName === "parallel-planner-with-review";
+
+const renderContainerfile = (
+  agent: AgentEntry,
+  packageManager: PackageManagerConfig,
+  sandboxTools: ReadonlyArray<SandboxToolEntry>,
+): string => {
+  const packageAndSandboxTools = [
+    packageManager.dockerfileTools,
+    ...sandboxTools.map((tool) => tool.containerfileTools),
+  ]
+    .filter((block) => block.trim().length > 0)
+    .join("\n\n");
+
+  return agent.dockerfileTemplate.replace(
+    "{{PACKAGE_MANAGER_TOOLS}}",
+    packageAndSandboxTools,
+  );
+};
 
 /**
  * Detect whether the project's package.json has `"type": "module"`.
@@ -826,6 +985,8 @@ export const scaffold = (
       createLabel = true,
       issueProvider = ISSUE_PROVIDER_REGISTRY[0]!, // default: linear
       sandboxProvider = SANDBOX_PROVIDER_REGISTRY[0]!, // default: docker
+      sandboxTools = [],
+      sonarHostUrl,
       reviewBackend = agent.name === "codex" ? "codex-review" : "prompt",
     } = options;
     const fs = yield* FileSystem.FileSystem;
@@ -851,10 +1012,14 @@ export const scaffold = (
 
     const templateDir = yield* getTemplateDir(templateName);
 
-    // Build .env.example from agent + issue provider env blocks
+    // Build .env.example from agent + issue provider + optional sandbox tool env blocks
     const envExampleParts = [agent.envExample];
     if (issueProvider.envExample) {
       envExampleParts.push(issueProvider.envExample);
+    }
+    for (const tool of sandboxTools) {
+      const envExample = tool.envExample({ sonarHostUrl });
+      if (envExample) envExampleParts.push(envExample);
     }
     const envExampleContent = envExampleParts.join("\n") + "\n";
 
@@ -863,10 +1028,7 @@ export const scaffold = (
         fs
           .writeFileString(
             join(configDir, sandboxProvider.containerfileName),
-            agent.dockerfileTemplate.replace(
-              "{{PACKAGE_MANAGER_TOOLS}}",
-              packageManager.dockerfileTools,
-            ),
+            renderContainerfile(agent, packageManager, sandboxTools),
           )
           .pipe(Effect.mapError((e) => new Error(e.message))),
         fs

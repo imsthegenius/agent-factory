@@ -40,6 +40,7 @@ describe("narukami CLI", () => {
     // build-image and remove-image are namespaced under docker, not top-level
     expect(stdout).toContain("docker build-image");
     expect(stdout).toContain("docker remove-image");
+    expect(stdout).toContain("tools");
     // Old command names should not be exposed
     expect(stdout).not.toContain("setup-sandbox");
     expect(stdout).not.toContain("cleanup-sandbox");
@@ -81,6 +82,18 @@ describe("narukami CLI", () => {
   it("init --help exposes --model flag", async () => {
     const { stdout } = await runCli("init --help", process.cwd());
     expect(stdout).toContain("--model");
+  });
+
+  it("init --help exposes optional sandbox tool flags", async () => {
+    const { stdout } = await runCli("init --help", process.cwd());
+    expect(stdout).toContain("--tools");
+    expect(stdout).toContain("--sonar-host-url");
+  });
+
+  it("tools remove --help exposes cleanup and rebuild flags", async () => {
+    const { stdout } = await runCli("tools remove --help", process.cwd());
+    expect(stdout).toContain("--tool");
+    expect(stdout).toContain("--rebuild");
   });
 
   it("init --template nonexistent produces error listing available templates", async () => {

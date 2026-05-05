@@ -14,6 +14,9 @@ import {
   getIssueProvider,
   listSandboxProviders,
   getSandboxProvider,
+  listSandboxTools,
+  getSandboxTool,
+  removeSandboxToolFromConfig,
 } from "./InitService.js";
 import type { ScaffoldOptions } from "./InitService.js";
 import { SANDBOX_REPO_DIR } from "./SandboxFactory.js";
@@ -1978,6 +1981,119 @@ describe("InitService scaffold", () => {
       expect(dockerfile).toContain("@mariozechner/pi-coding-agent");
       expect(dockerfile).not.toContain("GitHub CLI");
     });
+
+    it("scaffold includes ripgrep in generated Dockerfile base tools", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir);
+
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+      expect(dockerfile).toContain("ripgrep");
+    });
+
+    it("scaffold with sonar-scanner tool installs scanner and env hints", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        sandboxTools: [getSandboxTool("sonar-scanner")!],
+        sonarHostUrl: "http://host.docker.internal:9000",
+      });
+
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+      const envExample = await readFile(
+        join(dir, ".narukami", ".env.example"),
+        "utf-8",
+      );
+
+      expect(dockerfile).toContain("ARG SONAR_SCANNER_VERSION=");
+      expect(dockerfile).toContain("apt-get install -y unzip");
+      expect(dockerfile).toContain("sonar-scanner");
+      expect(dockerfile).toContain("linux-aarch64");
+      expect(envExample).toContain(
+        "SONAR_HOST_URL=http://host.docker.internal:9000",
+      );
+      expect(envExample).toContain("SONAR_TOKEN=");
+    });
+
+    it("scaffold without sonar-scanner tool omits scanner install and env hints", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir);
+
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+      const envExample = await readFile(
+        join(dir, ".narukami", ".env.example"),
+        "utf-8",
+      );
+
+      expect(dockerfile).not.toContain("SONAR_SCANNER_VERSION");
+      expect(dockerfile).not.toContain("sonar-scanner.zip");
+      expect(envExample).not.toContain("SONAR_HOST_URL=");
+      expect(envExample).not.toContain("SONAR_TOKEN=");
+    });
+
+    it("scaffold with sonar-scanner + podman writes scanner to Containerfile", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        sandboxProvider: getSandboxProvider("podman"),
+        sandboxTools: [getSandboxTool("sonar-scanner")!],
+      });
+
+      const containerfile = await readFile(
+        join(dir, ".narukami", "Containerfile"),
+        "utf-8",
+      );
+      expect(containerfile).toContain("ARG SONAR_SCANNER_VERSION=");
+      expect(containerfile).toContain("sonar-scanner");
+    });
+
+    it("can remove scaffolded sonar-scanner blocks from config", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        sandboxTools: [getSandboxTool("sonar-scanner")!],
+        sonarHostUrl: "https://sonar.example.com",
+      });
+
+      const result = await Effect.runPromise(
+        removeSandboxToolFromConfig(dir, "sonar-scanner").pipe(
+          Effect.provide(NodeFileSystem.layer),
+        ),
+      );
+
+      const dockerfile = await readFile(
+        join(dir, ".narukami", "Dockerfile"),
+        "utf-8",
+      );
+      const envExample = await readFile(
+        join(dir, ".narukami", ".env.example"),
+        "utf-8",
+      );
+
+      expect(result.changed).toBe(true);
+      expect(dockerfile).not.toContain("SONAR_SCANNER_VERSION");
+      expect(dockerfile).not.toContain("narukami-tool:sonar-scanner");
+      expect(envExample).not.toContain("SONAR_HOST_URL=");
+      expect(envExample).not.toContain("narukami-env:sonar-scanner");
+    });
+
+    it("removing absent sonar-scanner blocks reports no changes", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir);
+
+      const result = await Effect.runPromise(
+        removeSandboxToolFromConfig(dir, "sonar-scanner").pipe(
+          Effect.provide(NodeFileSystem.layer),
+        ),
+      );
+
+      expect(result.changed).toBe(false);
+    });
   });
 
   // --- ESM extension detection ---
@@ -2178,5 +2294,27 @@ describe("Sandbox provider registry", () => {
 
   it("getSandboxProvider returns undefined for unknown provider", () => {
     expect(getSandboxProvider("nonexistent")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sandbox tool registry
+// ---------------------------------------------------------------------------
+
+describe("Sandbox tool registry", () => {
+  it("lists sonar-scanner as an optional sandbox tool", () => {
+    const tools = listSandboxTools();
+    expect(tools.some((tool) => tool.name === "sonar-scanner")).toBe(true);
+  });
+
+  it("getSandboxTool returns sonar-scanner entry", () => {
+    const tool = getSandboxTool("sonar-scanner");
+    expect(tool).toBeDefined();
+    expect(tool!.containerfileTools).toContain("SonarScanner CLI");
+    expect(tool!.containerfileTools).toContain("sonar-scanner");
+  });
+
+  it("getSandboxTool returns undefined for unknown tools", () => {
+    expect(getSandboxTool("unknown-tool")).toBeUndefined();
   });
 });

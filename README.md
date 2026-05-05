@@ -630,14 +630,16 @@ Select a template during `narukami init` when prompted, or re-run init in a fres
 
 ### `narukami init`
 
-Scaffolds the `.narukami/` config directory and builds the container image. This is the first command you run in a new repo. You choose a sandbox provider (Docker or Podman) during init — selecting Podman writes a `Containerfile` instead of `Dockerfile` and uses `narukami podman build-image` for the build step.
+Scaffolds the `.narukami/` config directory and builds the container image. This is the first command you run in a new repo. You choose a sandbox provider (Docker or Podman) during init — selecting Podman writes a `Containerfile` instead of `Dockerfile` and uses `narukami podman build-image` for the build step. Init also asks whether to install optional sandbox tools such as SonarScanner CLI.
 
-| Option         | Required | Default                    | Description                                                |
-| -------------- | -------- | -------------------------- | ---------------------------------------------------------- |
-| `--image-name` | No       | `narukami:<repo-dir-name>` | Docker image name                                          |
-| `--agent`      | No       | Interactive prompt         | Agent to use (`codex`, `claude-code`, `pi`, `opencode`)    |
-| `--model`      | No       | Agent's default model      | Model to use (e.g. `gpt-5.5`). Defaults to agent's default |
-| `--template`   | No       | Interactive prompt         | Template to scaffold (e.g. `blank`, `simple-loop`)         |
+| Option             | Required | Default                    | Description                                                              |
+| ------------------ | -------- | -------------------------- | ------------------------------------------------------------------------ |
+| `--image-name`     | No       | `narukami:<repo-dir-name>` | Docker image name                                                        |
+| `--agent`          | No       | Interactive prompt         | Agent to use (`codex`, `claude-code`, `pi`, `opencode`)                  |
+| `--model`          | No       | Agent's default model      | Model to use (e.g. `gpt-5.5`). Defaults to agent's default               |
+| `--template`       | No       | Interactive prompt         | Template to scaffold (e.g. `blank`, `simple-loop`)                       |
+| `--tools`          | No       | Interactive prompt         | Comma-separated optional sandbox tools to install (e.g. `sonar-scanner`) |
+| `--sonar-host-url` | No       | —                          | Prefill `SONAR_HOST_URL` in `.narukami/.env.example` when using Sonar    |
 
 Creates the following files:
 
@@ -650,6 +652,14 @@ Creates the following files:
 ```
 
 Errors if `.narukami/` already exists to prevent overwriting customizations.
+
+Optional tools are marked in generated files so they can be removed later. For example, to remove SonarScanner CLI from `.narukami/Dockerfile` or `.narukami/Containerfile`, clean up the matching `.env.example` block, and rebuild the detected image:
+
+```bash
+npx narukami tools remove --tool sonar-scanner --rebuild
+```
+
+If your SonarQube server runs on the host, Docker Desktop usually exposes it to containers as `http://host.docker.internal:9000`; hosted SonarQube or SonarCloud URLs can be used instead.
 
 ### `narukami docker build-image`
 
@@ -684,6 +694,16 @@ Removes the Podman image.
 | Option         | Required | Default                    | Description       |
 | -------------- | -------- | -------------------------- | ----------------- |
 | `--image-name` | No       | `narukami:<repo-dir-name>` | Podman image name |
+
+### `narukami tools remove`
+
+Removes a marked optional sandbox tool block from `.narukami/Dockerfile` or `.narukami/Containerfile` and from `.narukami/.env.example`. Use this if an optional tool is not needed or if its install step is incompatible with your local image build.
+
+| Option         | Required | Default                    | Description                                            |
+| -------------- | -------- | -------------------------- | ------------------------------------------------------ |
+| `--tool`       | Yes      | —                          | Optional tool to remove, such as `sonar-scanner`       |
+| `--rebuild`    | No       | `false`                    | Rebuild the detected Docker/Podman image after cleanup |
+| `--image-name` | No       | `narukami:<repo-dir-name>` | Image name to rebuild when `--rebuild` is passed       |
 
 ### `RunOptions`
 
@@ -1150,7 +1170,7 @@ All per-repo sandbox configuration lives in `.narukami/`. Run `narukami init` to
 The `.narukami/Dockerfile` controls the sandbox environment. The default template installs:
 
 - **Node.js 22** (base image)
-- **git**, **curl**, **jq** (system dependencies)
+- **git**, **curl**, **jq**, **ripgrep** (system dependencies)
 - **Codex CLI**
 - A non-root `agent` user
 
