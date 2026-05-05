@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.1.5
+
+### Patch Changes
+
+- Added optional tool support such as Sonar, and fixed minor temp dir issues"
+
 ## 0.1.4
 
 ### Patch Changes
