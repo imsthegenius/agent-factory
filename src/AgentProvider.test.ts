@@ -835,6 +835,41 @@ describe("opencode factory", () => {
     expect(command).toContain("--model 'opencode/big-pickle'");
   });
 
+  it("buildPrintCommand includes --variant when specified", () => {
+    const provider = opencode("opencode/big-pickle", { variant: "high" });
+    const { command } = provider.buildPrintCommand(opts("do something"));
+    expect(command).toContain("--variant 'high'");
+  });
+
+  it("buildPrintCommand omits --variant when not specified", () => {
+    const provider = opencode("opencode/big-pickle");
+    const { command } = provider.buildPrintCommand(opts("do something"));
+    expect(command).not.toContain("--variant");
+  });
+
+  it("buildPrintCommand omits --variant when options is empty", () => {
+    const provider = opencode("opencode/big-pickle", {});
+    const { command } = provider.buildPrintCommand(opts("do something"));
+    expect(command).not.toContain("--variant");
+  });
+
+  it("passes through arbitrary variant values to the CLI flag", () => {
+    for (const variant of ["low", "high", "max", "minimal", "custom-value"]) {
+      const provider = opencode("opencode/big-pickle", { variant });
+      expect(provider.buildPrintCommand(opts("test")).command).toContain(
+        "--variant",
+      );
+    }
+  });
+
+  it("buildPrintCommand shell-escapes the variant value", () => {
+    const provider = opencode("opencode/big-pickle", {
+      variant: "it's tricky",
+    });
+    const { command } = provider.buildPrintCommand(opts("test"));
+    expect(command).toContain("--variant 'it'\\''s tricky'");
+  });
+
   it("parseStreamLine returns empty array for all input (raw passthrough)", () => {
     const provider = opencode("opencode/big-pickle");
     expect(provider.parseStreamLine("some output text")).toEqual([]);

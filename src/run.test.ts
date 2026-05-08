@@ -16,6 +16,9 @@ import {
   type RunResult,
 } from "./run.js";
 import { claudeCode, codex } from "./AgentProvider.js";
+import { Output, StructuredOutputError } from "./Output.js";
+import type { InteractiveOptions } from "./interactive.js";
+import type { WorktreeInteractiveOptions } from "./createWorktree.js";
 import { defaultImageName } from "./sandboxes/docker.js";
 import * as narukami from "./SandboxProvider.js";
 import { createBindMountSandboxProvider } from "./SandboxProvider.js";
@@ -919,5 +922,140 @@ describe("buildContextWindowLines", () => {
   it("returns empty array for empty iterations list", () => {
     const lines = buildContextWindowLines([]);
     expect(lines).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structured output validation
+// ---------------------------------------------------------------------------
+
+const mockSchema = () => ({
+  "~standard": {
+    version: 1 as const,
+    vendor: "test",
+    validate: (value: unknown) => ({ value }),
+  },
+});
+
+describe("structured output entry-time validation", () => {
+  it("throws when output is set with maxIterations !== 1", async () => {
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "emit <result>...</result>",
+        branchStrategy: { type: "head" },
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+        maxIterations: 2,
+      }),
+    ).rejects.toThrow("output requires maxIterations to be 1");
+  });
+
+  it("allows output with maxIterations = 1 (default)", async () => {
+    // Should pass maxIterations check and fail later for a different reason
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "emit <result>...</result>",
+        branchStrategy: { type: "head" },
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      }),
+    ).rejects.not.toThrow("output requires maxIterations to be 1");
+  });
+
+  it("throws when output tag is not in the resolved prompt", async () => {
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "do some work",
+        branchStrategy: { type: "head" },
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      }),
+    ).rejects.toThrow("output tag <result> not found in the resolved prompt");
+  });
+
+  it("passes tag check when the tag appears in the prompt", async () => {
+    // Should pass the entry-time tag check and fail later for a different reason
+    // (the mock sandbox produces empty stdout, so extraction fails — but not the prompt check)
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "emit your answer inside <result> tags",
+        branchStrategy: { type: "head" },
+        output: Output.object({ tag: "result", schema: mockSchema() }),
+      }),
+    ).rejects.not.toThrow("not found in the resolved prompt");
+  });
+
+  it("validates tag presence for Output.string as well", async () => {
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        prompt: "do some work",
+        branchStrategy: { type: "head" },
+        output: Output.string({ tag: "summary" }),
+      }),
+    ).rejects.toThrow("output tag <summary> not found in the resolved prompt");
+  });
+
+  it("validates tag presence with promptFile", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sandcastle-output-"));
+    const promptFile = join(dir, "prompt.md");
+    writeFileSync(promptFile, "do some work without the tag");
+
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        sandbox: testSandbox,
+        promptFile,
+        branchStrategy: { type: "head" },
+        output: Output.object({ tag: "answer", schema: mockSchema() }),
+      }),
+    ).rejects.toThrow("output tag <answer> not found in the resolved prompt");
+  });
+});
+
+describe("RunOptions with output", () => {
+  it("allows output field on RunOptions", () => {
+    const opts: RunOptions = {
+      agent: claudeCode("claude-opus-4-6"),
+      sandbox: testSandbox,
+      prompt: "emit <result>...</result>",
+      output: Output.object({ tag: "result", schema: mockSchema() }),
+    };
+    expect(opts.output).toBeDefined();
+  });
+
+  it("allows output to be omitted", () => {
+    const opts: RunOptions = {
+      agent: claudeCode("claude-opus-4-6"),
+      sandbox: testSandbox,
+      prompt: "test",
+    };
+    expect(opts.output).toBeUndefined();
+  });
+});
+
+describe("output type-level exclusion", () => {
+  it("InteractiveOptions does not accept output", () => {
+    const opts: InteractiveOptions = {
+      agent: claudeCode("claude-opus-4-6"),
+      prompt: "test",
+    };
+    // @ts-expect-error output is not a field on InteractiveOptions
+    expect(opts.output).toBeUndefined();
+  });
+
+  it("WorktreeInteractiveOptions does not accept output", () => {
+    const opts: WorktreeInteractiveOptions = {
+      agent: claudeCode("claude-opus-4-6"),
+      prompt: "test",
+    };
+    // @ts-expect-error output is not a field on WorktreeInteractiveOptions
+    expect(opts.output).toBeUndefined();
   });
 });

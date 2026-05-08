@@ -390,6 +390,8 @@ export const codexReview = (
 
 /** Options for the opencode agent provider. */
 export interface OpenCodeOptions {
+  /** Provider-specific reasoning effort variant (e.g. "high", "max", "low", "minimal"). */
+  readonly variant?: string;
   /** Environment variables injected by this agent provider. */
   readonly env?: Record<string, string>;
 }
@@ -403,8 +405,11 @@ export const opencode = (
   captureSessions: false,
 
   buildPrintCommand({ prompt }: AgentCommandOptions): PrintCommand {
+    const variantFlag = options?.variant
+      ? ` --variant ${shellEscape(options.variant)}`
+      : "";
     return {
-      command: `opencode run --model ${shellEscape(model)} ${shellEscape(prompt)}`,
+      command: `opencode run --model ${shellEscape(model)}${variantFlag} ${shellEscape(prompt)}`,
     };
   },
 

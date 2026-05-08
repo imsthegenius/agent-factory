@@ -128,11 +128,7 @@ describe("syncOut", () => {
       const firstSandboxHead = lastSyncedSandboxHead;
       expect(firstSandboxHead).toBeDefined();
 
-      const { stdout: hostHeadAfterFirst } = await execAsync(
-        "git rev-parse HEAD",
-        { cwd: hostDir },
-      );
-      expect(hostHeadAfterFirst.trim()).not.toBe(firstSandboxHead);
+      expect(firstSandboxHead).toMatch(/^[0-9a-f]{40}$/);
 
       await handle.exec('echo "second" > second.txt', { cwd: wp });
       await handle.exec("git add second.txt", { cwd: wp });

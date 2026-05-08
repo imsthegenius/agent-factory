@@ -14,7 +14,7 @@ Issues live in Linear. The Linear MCP tool must be installed and available to th
 
 ### Triage labels
 
-Default canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+Default canonical labels. Agent provider support is detailed here. See `docs/agents/triage.md`.
 
 ### Domain docs
 

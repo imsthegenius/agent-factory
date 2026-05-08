@@ -188,6 +188,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                   promptFile: reviewPromptFile,
                   promptArgs: {
                     BRANCH: issue.branch,
+                    REVIEW_BASE: reviewBase,
                   },
                 }),
           });
@@ -244,6 +245,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                     promptFile: reviewPromptFile,
                     promptArgs: {
                       BRANCH: issue.branch,
+                      REVIEW_BASE: reviewBase,
                     },
                   }),
             });

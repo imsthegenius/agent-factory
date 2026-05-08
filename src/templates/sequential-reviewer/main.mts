@@ -7,6 +7,9 @@
 //   Phase 2 (Review):    A second agent reviews the branch diff and either
 //                        approves it or makes corrections directly on the branch.
 //
+// Both phases share a single sandbox created via createSandbox(), so the
+// implementer, reviewer, and repairer work on the same explicit branch.
+//
 // The outer loop repeats up to MAX_ITERATIONS times, processing one issue per
 // iteration. This is a middle-complexity option between the simple-loop (no review
 // gate) and the parallel-planner (concurrent execution with a planning phase).
@@ -57,7 +60,7 @@ const repairPrompt = (
   previousFindings: string[],
 ): string => `The reviewer found issues in the current branch but did not commit fixes.
 
-Address the findings below directly in this repo. Keep the scope limited to review feedback, run the repo-defined checks that fit the change, and commit the fix with a NARUKAMI-prefixed message.
+Address the findings below directly on the current branch. Keep the scope limited to review feedback, run the repo-defined checks that fit the change, and commit the fix with a NARUKAMI-prefixed message.
 
 Previous review findings from this repair loop:
 
@@ -73,126 +76,63 @@ ${reviewStdout}`;
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+
   const reviewBase = execSync("git rev-parse HEAD", {
     encoding: "utf8",
   }).trim();
+  const branch = `narukami/sequential-reviewer/${Date.now()}`;
 
-  // -------------------------------------------------------------------------
-  // Phase 1: Implement
-  //
-  // An agent picks the next open issue, creates a branch, writes
-  // the implementation (using RGR: Red → Green → Repeat → Refactor), and
-  // commits the result.
-  //
-  // The agent signals completion via <promise>COMPLETE</promise> when done.
-  // The result contains the branch name the agent worked on.
-  // -------------------------------------------------------------------------
-  const implement = await narukami.run({
+  const sandbox = await narukami.createSandbox({
+    branch,
+    sandbox: docker(),
     hooks,
     copyToWorktree,
-    sandbox: docker(),
-    branchStrategy: { type: "merge-to-head" },
-    name: "implementer",
-    maxIterations: 100,
-    agent: narukami.codex("gpt-5.5", { effort: "low" }),
-    promptFile: "./.narukami/implement-prompt.md",
   });
 
-  // Extract the branch the agent worked on so the reviewer can target it.
-  const branch = implement.branch;
-
-  if (!implement.commits.length) {
-    if (implement.completionSignal !== undefined) {
-      console.log(
-        "Implementation agent reported no actionable work. Stopping.",
-      );
-      break;
-    }
-    console.log("Implementation agent made no commits. Skipping review.");
-    continue;
-  }
-
-  console.log(`\nImplementation complete on branch: ${branch}`);
-  console.log(`Commits: ${implement.commits.length}`);
-  const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
-  let repairResumeSession =
-    repairAgent.name === "codex"
-      ? implement.iterations.at(-1)?.sessionId
-      : undefined;
-
-  // -------------------------------------------------------------------------
-  // Phase 2: Review
-  //
-  // A second agent reviews the commits produced by Phase 1, using the
-  // pre-implementation HEAD as the review base. It runs on its own temporary
-  // branch and Narukami merges reviewer fixes back into the current branch.
-  // -------------------------------------------------------------------------
-  let review = await narukami.run({
-    hooks,
-    copyToWorktree,
-    sandbox: docker(),
-    branchStrategy: { type: "merge-to-head" },
-    name: "reviewer",
-    maxIterations: 1,
-    agent: narukami.codexReview("gpt-5.5", {
-      effort: "low",
-      base: reviewBase,
-    }),
-    ...(reviewPromptFile === undefined
-      ? {}
-      : {
-          promptFile: reviewPromptFile,
-          promptArgs: {
-            BRANCH: branch,
-            REVIEW_BASE: reviewBase,
-          },
-        }),
-  });
-
-  const previousReviewFindings: string[] = [];
-  for (
-    let repairAttempt = 1;
-    hasReviewFindings(review.stdout) &&
-    review.commits.length === 0 &&
-    repairAttempt <= MAX_REPAIR_ATTEMPTS;
-    repairAttempt++
-  ) {
-    console.log(
-      `\nReviewer reported findings without fixes. Running repair attempt ${repairAttempt}/${MAX_REPAIR_ATTEMPTS}.`,
-    );
-
-    const priorFindings = [...previousReviewFindings];
-    previousReviewFindings.push(review.stdout);
-
-    const repair = await narukami.run({
-      hooks,
-      copyToWorktree,
-      sandbox: docker(),
-      branchStrategy: { type: "merge-to-head" },
-      name: "repairer",
-      maxIterations: repairResumeSession ? 1 : 20,
-      agent: repairAgent,
-      prompt: repairPrompt(review.stdout, priorFindings),
-      ...(repairResumeSession === undefined
-        ? {}
-        : { resumeSession: repairResumeSession }),
+  try {
+    // -----------------------------------------------------------------------
+    // Phase 1: Implement
+    //
+    // An agent picks the next open issue, writes the implementation
+    // (using RGR: Red → Green → Repeat → Refactor), and commits the result.
+    //
+    // The agent signals completion via <promise>COMPLETE</promise> when done.
+    // -----------------------------------------------------------------------
+    const implement = await sandbox.run({
+      name: "implementer",
+      maxIterations: 100,
+      agent: narukami.codex("gpt-5.5", { effort: "low" }),
+      promptFile: "./.narukami/implement-prompt.md",
     });
 
-    if (!repair.commits.length) {
-      throw new Error(
-        "Repair agent did not commit fixes for reviewer findings. Check the reviewer and repairer logs before continuing.",
-      );
-    }
-    if (repairAgent.name === "codex") {
-      repairResumeSession =
-        repair.iterations.at(-1)?.sessionId ?? repairResumeSession;
+    if (!implement.commits.length) {
+      if (implement.completionSignal !== undefined) {
+        console.log(
+          "Implementation agent reported no actionable work. Stopping.",
+        );
+        break;
+      }
+      console.log("Implementation agent made no commits. Skipping review.");
+      continue;
     }
 
-    review = await narukami.run({
-      hooks,
-      copyToWorktree,
-      sandbox: docker(),
-      branchStrategy: { type: "merge-to-head" },
+    console.log(`\nImplementation complete on branch: ${branch}`);
+    console.log(`Commits: ${implement.commits.length}`);
+
+    const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
+    let repairResumeSession =
+      repairAgent.name === "codex"
+        ? implement.iterations.at(-1)?.sessionId
+        : undefined;
+
+    // -----------------------------------------------------------------------
+    // Phase 2: Review
+    //
+    // Codex-agent scaffolds use Codex CLI's built-in review mode by default.
+    // Prompt-based review remains available for non-Codex agents or custom
+    // reviewer instructions.
+    // -----------------------------------------------------------------------
+    let review = await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
       agent: narukami.codexReview("gpt-5.5", {
@@ -209,15 +149,72 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             },
           }),
     });
-  }
 
-  if (hasReviewFindings(review.stdout) && review.commits.length === 0) {
-    throw new Error(
-      "Reviewer still reports findings after repair attempts. Check the reviewer and repairer logs before continuing.",
-    );
-  }
+    const previousReviewFindings: string[] = [];
+    for (
+      let repairAttempt = 1;
+      hasReviewFindings(review.stdout) &&
+      review.commits.length === 0 &&
+      repairAttempt <= MAX_REPAIR_ATTEMPTS;
+      repairAttempt++
+    ) {
+      console.log(
+        `\nReviewer reported findings without fixes. Running repair attempt ${repairAttempt}/${MAX_REPAIR_ATTEMPTS}.`,
+      );
 
-  console.log("\nReview complete.");
+      const priorFindings = [...previousReviewFindings];
+      previousReviewFindings.push(review.stdout);
+
+      const repair = await sandbox.run({
+        name: "repairer",
+        maxIterations: repairResumeSession ? 1 : 20,
+        agent: repairAgent,
+        prompt: repairPrompt(review.stdout, priorFindings),
+        ...(repairResumeSession === undefined
+          ? {}
+          : { resumeSession: repairResumeSession }),
+      });
+
+      if (!repair.commits.length) {
+        throw new Error(
+          "Repair agent did not commit fixes for reviewer findings. Check the reviewer and repairer logs before continuing.",
+        );
+      }
+
+      if (repairAgent.name === "codex") {
+        repairResumeSession =
+          repair.iterations.at(-1)?.sessionId ?? repairResumeSession;
+      }
+
+      review = await sandbox.run({
+        name: "reviewer",
+        maxIterations: 1,
+        agent: narukami.codexReview("gpt-5.5", {
+          effort: "low",
+          base: reviewBase,
+        }),
+        ...(reviewPromptFile === undefined
+          ? {}
+          : {
+              promptFile: reviewPromptFile,
+              promptArgs: {
+                BRANCH: branch,
+                REVIEW_BASE: reviewBase,
+              },
+            }),
+      });
+    }
+
+    if (hasReviewFindings(review.stdout) && review.commits.length === 0) {
+      throw new Error(
+        "Reviewer still reports findings after repair attempts. Check the reviewer and repairer logs before continuing.",
+      );
+    }
+
+    console.log("\nReview complete.");
+  } finally {
+    await sandbox.close();
+  }
 }
 
 console.log("\nAll done.");
