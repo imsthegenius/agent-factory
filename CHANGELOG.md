@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.5.13
+
+### Patch Changes
+
+- Run the scaffold entrypoint from the CLI root so generated projects resolve paths correctly.
+
 ## 0.5.12
 
 ### Patch Changes
