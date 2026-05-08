@@ -132,6 +132,19 @@ describe("InitService scaffold", () => {
     expect(dockerfile).not.toContain("{{ISSUE_PROVIDER_TOOLS}}");
   });
 
+  it("scaffolds Dockerfile UID/GID setup that tolerates existing host GIDs", async () => {
+    const dir = await makeDir();
+    await runScaffold(dir);
+
+    const dockerfile = await readFile(
+      join(dir, ".narukami", "Dockerfile"),
+      "utf-8",
+    );
+    expect(dockerfile).toContain('getent group "$AGENT_GID"');
+    expect(dockerfile).toContain('usermod -u "$AGENT_UID"');
+    expect(dockerfile).not.toContain("groupmod -g $AGENT_GID node && usermod");
+  });
+
   // --- Dynamic .env.example generation ---
 
   it.each([

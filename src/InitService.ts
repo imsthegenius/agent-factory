@@ -64,6 +64,16 @@ interface PackageManagerConfig {
   readonly dockerfileTools: string;
 }
 
+const DOCKER_AGENT_USER_SETUP = `# Rename the base image's "node" user to "agent" and align UID/GID.
+# If AGENT_GID already exists (for example macOS GID 20 in Debian), reuse it.
+RUN set -eux; \\
+  target_group="$(getent group "$AGENT_GID" | cut -d: -f1 || true)"; \\
+  if [ -z "$target_group" ]; then \\
+    groupmod -g "$AGENT_GID" node; \\
+  fi; \\
+  usermod -u "$AGENT_UID" -g "$AGENT_GID" -d /home/agent -m -l agent node; \\
+  chown -R "$AGENT_UID:$AGENT_GID" /home/agent`;
+
 const CLAUDE_CODE_DOCKERFILE = `FROM node:22-bookworm
 
 # Install system dependencies
@@ -84,8 +94,7 @@ RUN apt-get update && apt-get install -y \\
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 
-# Rename the base image's "node" user to "agent" and align UID/GID.
-RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
+${DOCKER_AGENT_USER_SETUP}
 USER \${AGENT_UID}:\${AGENT_GID}
 
 # Install Claude Code CLI
@@ -122,8 +131,7 @@ RUN apt-get update && apt-get install -y \\
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 
-# Rename the base image's "node" user to "agent" and align UID/GID.
-RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
+${DOCKER_AGENT_USER_SETUP}
 
 # Install pi coding agent (run as root before USER agent)
 RUN npm install -g @mariozechner/pi-coding-agent
@@ -158,8 +166,7 @@ RUN apt-get update && apt-get install -y \\
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 
-# Rename the base image's "node" user to "agent" and align UID/GID.
-RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
+${DOCKER_AGENT_USER_SETUP}
 
 # Install Codex CLI (run as root before USER agent)
 RUN npm install -g @openai/codex
@@ -194,8 +201,7 @@ RUN apt-get update && apt-get install -y \\
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 
-# Rename the base image's "node" user to "agent" and align UID/GID.
-RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
+${DOCKER_AGENT_USER_SETUP}
 
 # Install OpenCode CLI (run as root before USER agent)
 RUN npm install -g opencode-ai@latest
