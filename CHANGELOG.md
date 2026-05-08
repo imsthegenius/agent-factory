@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.5.14
+
+### Patch Changes
+
+- Enhance the sequential-reviewer template to merge reviewed branches and clarify test descriptions.
+
 ## 0.5.13
 
 ### Patch Changes
