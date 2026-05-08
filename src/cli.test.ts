@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -26,8 +26,8 @@ const commitFile = async (
 
 const cliPath = join(import.meta.dirname, "..", "dist", "main.js");
 
-const runCli = (args: string, cwd: string) =>
-  execAsync(`node ${cliPath} ${args}`, { cwd });
+const runCli = (args: string, cwd: string, env?: NodeJS.ProcessEnv) =>
+  execAsync(`node ${cliPath} ${args}`, { cwd, env });
 
 describe("narukami CLI", () => {
   it("shows help with --help flag", async () => {
@@ -46,6 +46,31 @@ describe("narukami CLI", () => {
     expect(stdout).not.toContain("cleanup-sandbox");
     expect(stdout).not.toContain("sync-in");
     expect(stdout).not.toContain("sync-out");
+  });
+
+  it("runs .narukami/main.mts when invoked without a subcommand", async () => {
+    const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
+    const binDir = await mkdtemp(join(tmpdir(), "cli-bin-"));
+    const outputPath = join(hostDir, "npx-args.txt");
+    await mkdir(join(hostDir, ".narukami"));
+    await writeFile(join(hostDir, ".narukami", "main.mts"), "// test\n");
+
+    const fakeNpx = join(binDir, "npx");
+    await writeFile(
+      fakeNpx,
+      `#!/bin/sh\nprintf '%s\\n' "$*" > "$NARUKAMI_FAKE_NPX_OUTPUT"\n`,
+    );
+    await chmod(fakeNpx, 0o755);
+
+    await runCli("", hostDir, {
+      ...process.env,
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      NARUKAMI_FAKE_NPX_OUTPUT: outputPath,
+    });
+
+    await expect(readFile(outputPath, "utf-8")).resolves.toBe(
+      "--yes tsx ./.narukami/main.mts\n",
+    );
   });
 
   it("docker --help shows build-image and remove-image subcommands", async () => {

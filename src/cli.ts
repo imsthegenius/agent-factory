@@ -2,7 +2,7 @@ import { Command, Options } from "@effect/cli";
 import { FileSystem } from "@effect/platform";
 import { Effect } from "effect";
 import * as clack from "@clack/prompts";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { styleText } from "node:util";
@@ -83,6 +83,44 @@ const requireConfigDir = (
         }),
       );
     }
+  });
+
+const runScaffoldEntrypoint = (
+  entrypoint: string,
+  cwd: string,
+): Effect.Effect<void, InitError> =>
+  Effect.tryPromise({
+    try: () =>
+      new Promise<void>((resolve, reject) => {
+        const child = spawn("npx", ["--yes", "tsx", entrypoint], {
+          cwd,
+          stdio: "inherit",
+          shell: process.platform === "win32",
+        });
+
+        child.on("error", (error) => {
+          reject(error);
+        });
+        child.on("exit", (code, signal) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(
+              new Error(
+                signal
+                  ? `Narukami entrypoint was terminated by ${signal}.`
+                  : `Narukami entrypoint exited with code ${code ?? "unknown"}.`,
+              ),
+            );
+          }
+        });
+      }),
+    catch: (error) =>
+      new InitError({
+        message: `Failed to run ${entrypoint}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      }),
   });
 
 // --- Init command ---
@@ -684,6 +722,27 @@ const toolsCommand = Command.make("tools", {}, () =>
 const rootCommand = Command.make("narukami", {}, () =>
   Effect.gen(function* () {
     const d = yield* Display;
+    const fs = yield* FileSystem.FileSystem;
+    const cwd = process.cwd();
+    const mainTs = join(cwd, CONFIG_DIR, "main.ts");
+    const mainMts = join(cwd, CONFIG_DIR, "main.mts");
+
+    const hasMainTs = yield* fs
+      .exists(mainTs)
+      .pipe(Effect.catchAll(() => Effect.succeed(false)));
+    if (hasMainTs) {
+      yield* runScaffoldEntrypoint("./.narukami/main.ts", cwd);
+      return;
+    }
+
+    const hasMainMts = yield* fs
+      .exists(mainMts)
+      .pipe(Effect.catchAll(() => Effect.succeed(false)));
+    if (hasMainMts) {
+      yield* runScaffoldEntrypoint("./.narukami/main.mts", cwd);
+      return;
+    }
+
     yield* d.status(`Narukami Shrine v${VERSION}`, "info");
     yield* d.status("Use --help to see available commands.", "info");
   }),
