@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.5.12
+
+### Patch Changes
+
+- Fix Docker UID alignment when the requested agent GID collides with an existing group in the base image.
+
 ## 0.5.11
 
 ### Patch Changes
