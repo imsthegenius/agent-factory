@@ -567,7 +567,7 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("review-prompt.md");
     });
 
-    it("main.mts does not use merge-to-head (incompatible with reviewer handoff)", async () => {
+    it("main.mts merges reviewed sandbox branches back into the current checkout", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -577,6 +577,10 @@ describe("InitService scaffold", () => {
       );
       expect(mainTs).toContain('execSync("git rev-parse HEAD"');
       expect(mainTs).toContain("base: reviewBase");
+      expect(mainTs).toContain("const mergeReviewedBranch");
+      expect(mainTs).toContain('execFileSync("git", ["merge", branch]');
+      expect(mainTs).toContain('execFileSync("git", ["branch", "-d", branch]');
+      expect(mainTs).toContain("shouldMergeReviewedBranch = true");
       expect(mainTs).not.toContain("merge-to-head");
     });
 

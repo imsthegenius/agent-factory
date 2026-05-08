@@ -8,7 +8,8 @@
 //                        approves it or makes corrections directly on the branch.
 //
 // Both phases share a single sandbox created via createSandbox(), so the
-// implementer, reviewer, and repairer work on the same explicit branch.
+// implementer, reviewer, and repairer work on the same explicit branch. After
+// review passes, that branch is merged into the current checkout.
 //
 // The outer loop repeats up to MAX_ITERATIONS times, processing one issue per
 // iteration. This is a middle-complexity option between the simple-loop (no review
@@ -21,7 +22,7 @@
 
 import * as narukami from "@yae-tools/narukami-shrine";
 import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -70,6 +71,36 @@ Latest reviewer output:
 
 ${reviewStdout}`;
 
+const mergeReviewedBranch = (branch: string): void => {
+  const targetBranch = execFileSync(
+    "git",
+    ["rev-parse", "--abbrev-ref", "HEAD"],
+    {
+      encoding: "utf8",
+    },
+  ).trim();
+
+  console.log(`\nMerging reviewed branch ${branch} into ${targetBranch}.`);
+
+  try {
+    execFileSync("git", ["merge", branch], { stdio: "inherit" });
+  } catch {
+    throw new Error(
+      `Merge of '${branch}' into '${targetBranch}' failed. ` +
+        `The branch has been preserved. Resolve the conflict, then retry with: git merge ${branch}`,
+    );
+  }
+
+  try {
+    execFileSync("git", ["branch", "-d", branch], { stdio: "inherit" });
+  } catch {
+    console.warn(
+      `Reviewed branch ${branch} was merged but could not be deleted automatically. ` +
+        `Clean it up with: git branch -d ${branch}`,
+    );
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
@@ -88,6 +119,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     hooks,
     copyToWorktree,
   });
+
+  let shouldMergeReviewedBranch = false;
 
   try {
     // -----------------------------------------------------------------------
@@ -212,8 +245,19 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     }
 
     console.log("\nReview complete.");
+    shouldMergeReviewedBranch = true;
   } finally {
-    await sandbox.close();
+    const closeResult = await sandbox.close();
+    if (shouldMergeReviewedBranch && closeResult.preservedWorktreePath) {
+      throw new Error(
+        `Reviewed branch ${branch} still has uncommitted work in ${closeResult.preservedWorktreePath}. ` +
+          "Commit or discard those changes before merging.",
+      );
+    }
+  }
+
+  if (shouldMergeReviewedBranch) {
+    mergeReviewedBranch(branch);
   }
 }
 
