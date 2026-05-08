@@ -1,5 +1,11 @@
 # @ai-tools/narukami-shrine
 
+## 0.5.11
+
+### Patch Changes
+
+- Integrate upstream v0.5.10 while preserving Narukami Codex review, self-healing repair loops, Linear-first scaffolding, and optional sandbox tools such as SonarScanner.
+
 ## 0.1.6
 
 ### Patch Changes
