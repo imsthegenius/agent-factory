@@ -1,7 +1,7 @@
 {
-  "name": "@yae-tools/narukami-shrine",
-  "version": "0.5.14",
-  "description": "CLI for orchestrating AI agents in isolated sandbox environments",
+  "name": "@imsthegenius/agent-factory",
+  "version": "0.1.0",
+  "description": "Agent Factory: Pi-first AI coding agent orchestration in isolated sandboxes",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -32,8 +32,8 @@
     }
   },
   "bin": {
-    "narukami": "dist/main.js",
-    "narukami-shrine": "dist/main.js"
+    "factory": "dist/main.js",
+    "agent-factory": "dist/main.js"
   },
   "scripts": {
     "build": "tsgo --project tsconfig.build.json",
@@ -44,15 +44,15 @@
     "typecheck": "tsgo --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky",
+    "prepare": "npm run build",
     "release": "node scripts/publish-release.mjs",
     "release:changesets": "changeset publish",
     "release:github": "node scripts/publish-release.mjs --github-only",
     "release:version": "changeset version",
-    "narukami": "npm run build && tsx .narukami/run.ts",
-    "test-podman": "npm run build && tsx --env-file=.narukami/.env .narukami/test-podman.ts",
-    "test-vercel": "npm run build && tsx --env-file=.narukami/.env .narukami/test-vercel.ts",
-    "test-interactive": "npm run build && tsx --env-file=.narukami/.env .narukami/test-interactive.ts"
+    "factory": "npm run build && tsx .factory/run.ts",
+    "test-podman": "npm run build && tsx --env-file=.factory/.env .factory/test-podman.ts",
+    "test-vercel": "npm run build && tsx --env-file=.factory/.env .factory/test-vercel.ts",
+    "test-interactive": "npm run build && tsx --env-file=.factory/.env .factory/test-interactive.ts"
   },
   "keywords": [
     "cli",
@@ -64,7 +64,7 @@
   "packageManager": "npm@10.9.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/azula9713/narukami-shrine.git"
+    "url": "https://github.com/imsthegenius/agent-factory.git"
   },
   "license": "MIT",
   "devDependencies": {

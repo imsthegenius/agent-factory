@@ -38,7 +38,7 @@ Review the code changes merged into branch `{{BRANCH}}` since `{{REVIEW_BASE}}` 
    - Remove helpful abstractions that improve code organization
    - Make the code harder to debug or extend
 
-5. **Apply project standards**: Follow the coding standards defined in @.narukami/CODING_STANDARDS.md
+5. **Apply project standards**: Follow the coding standards defined in @.factory/CODING_STANDARDS.md
 
 6. **Preserve functionality**: Never change what the code does - only how it does it. All original features, outputs, and behaviors must remain intact.
 
@@ -46,7 +46,7 @@ Review the code changes merged into branch `{{BRANCH}}` since `{{REVIEW_BASE}}` 
 
 If you find improvements to make:
 
-1. Make the changes directly in this sandbox branch; Narukami Shrine will merge reviewer fixes back into `{{BRANCH}}`
+1. Make the changes directly in this sandbox branch; Agent Factory will merge reviewer fixes back into `{{BRANCH}}`
 2. Run tests and type checking to ensure nothing is broken
 3. Commit describing the refinements
 

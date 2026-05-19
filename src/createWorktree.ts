@@ -66,7 +66,7 @@ export interface CreateWorktreeOptions {
   readonly branchStrategy: WorktreeBranchStrategy;
   /**
    * Host repo directory. Replaces `process.cwd()` as the anchor for
-   * `.narukami/worktrees/`, `.narukami/.env`, and git operations.
+   * `.factory/worktrees/`, `.factory/.env`, and git operations.
    *
    * - Relative paths are resolved against `process.cwd()`.
    * - Absolute paths are used as-is.
@@ -108,7 +108,7 @@ export interface WorktreeInteractiveOptions {
    * - The worktree is preserved on disk after abort.
    * - The `Worktree` handle remains usable for subsequent operations.
    * - The rejected promise surfaces `signal.reason` via
-   *   `signal.throwIfAborted()` — no Narukami Shrine-specific wrapping.
+   *   `signal.throwIfAborted()` — no Agent Factory-specific wrapping.
    */
   readonly signal?: AbortSignal;
 }
@@ -168,7 +168,7 @@ export interface WorktreeRunResult {
 }
 
 export interface WorktreeCreateSandboxOptions {
-  /** Sandbox provider (e.g. docker({ imageName: "narukami:myrepo" })). */
+  /** Sandbox provider (e.g. docker({ imageName: "agent-factory:myrepo" })). */
   readonly sandbox: SandboxProvider;
   /** Lifecycle hooks grouped by execution location (host or sandbox). */
   readonly hooks?: SandboxHooks;
@@ -329,7 +329,7 @@ export const createWorktree = async (
       }
 
       // Display intro
-      yield* d.intro(opts.name ?? "narukami interactive");
+      yield* d.intro(opts.name ?? "factory interactive");
       yield* d.summary("Interactive Session", {
         Agent: opts.name ?? provider.name,
         Sandbox: resolvedSandbox.name,
@@ -576,7 +576,7 @@ export const createWorktree = async (
         type: "file",
         path: join(
           hostRepoDir,
-          ".narukami",
+          ".factory",
           "logs",
           buildLogFilename(worktreeInfo.branch, undefined, opts.name),
         ),
@@ -628,7 +628,7 @@ export const createWorktree = async (
       // 7. Run orchestration
       const result = yield* Effect.gen(function* () {
         const display = yield* Display;
-        yield* display.intro(opts.name ?? "narukami");
+        yield* display.intro(opts.name ?? "factory");
 
         return yield* orchestrate({
           hostRepoDir,

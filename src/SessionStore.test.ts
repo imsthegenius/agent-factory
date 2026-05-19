@@ -198,7 +198,7 @@ describe("hostSessionStore", () => {
   let tempDir: string;
 
   const setup = async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "narukami-session-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "factory-session-test-"));
     return tempDir;
   };
 
@@ -266,7 +266,7 @@ describe("hostSessionStore", () => {
 
 describe("sandboxSessionStore", () => {
   it("uses copyFileOut for readSession", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "narukami-sbx-store-"));
+    const tempDir = await mkdtemp(join(tmpdir(), "factory-sbx-store-"));
     try {
       const jsonl = JSON.stringify({ type: "init", cwd: "/workspace" });
 
@@ -311,7 +311,7 @@ describe("sandboxSessionStore", () => {
   });
 
   it("uses copyFileIn for writeSession", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "narukami-sbx-store-"));
+    const tempDir = await mkdtemp(join(tmpdir(), "factory-sbx-store-"));
     try {
       const jsonl = JSON.stringify({ type: "init" });
 

@@ -5,7 +5,7 @@
 When a sandbox runs inside a Linux container on a **Windows host**, git worktree
 mounts break in two distinct ways. This affects any configuration where a `.git`
 file (worktree pointer) must resolve inside the container — both when the **host
-repo itself is a worktree** and when Narukami Shrine **creates a worktree** via the
+repo itself is a worktree** and when Agent Factory **creates a worktree** via the
 `merge-to-head` or `branch` strategies.
 
 ### How git worktrees work
@@ -45,12 +45,12 @@ regardless of where the parent `.git` dir is mounted.
 Fix both problems by patching the git mounts before container creation:
 
 1. **Mount the parent `.git` dir at a deterministic POSIX path** —
-   `/.narukami-parent-git`. This gives the parent git directory a stable,
+   `/.factory-parent-git`. This gives the parent git directory a stable,
    valid location inside the sandbox.
 
 2. **Create a corrected `.git` file** with the `gitdir:` path rewritten to
    match the deterministic mount point, e.g.,
-   `gitdir: /.narukami-parent-git/worktrees/abc`. Mount this file at
+   `gitdir: /.factory-parent-git/worktrees/abc`. Mount this file at
    `SANDBOX_REPO_DIR/.git` as a Docker **overlay mount** — a file bind-mount
    that overrides the original `.git` file from the worktree directory mount.
 
@@ -66,7 +66,7 @@ and `startSandbox`. It:
 2. Reads the worktree's `.git` file to extract the `gitdir:` path.
 3. Parses the worktree name and parent `.git` dir from the `gitdir:` path.
 4. Creates a temp file with the corrected `gitdir:` content.
-5. Remaps the parent `.git` dir mount to `/.narukami-parent-git`.
+5. Remaps the parent `.git` dir mount to `/.factory-parent-git`.
 6. Adds (or replaces) a mount for the corrected `.git` file at
    `SANDBOX_REPO_DIR/.git`.
 
@@ -74,7 +74,7 @@ The function handles both scenarios:
 
 - **Host repo is a worktree** — replaces the `.git` file mount already in
   `gitMounts` from `resolveGitMounts`.
-- **Narukami Shrine-created worktree** — adds a new overlay mount, since the `.git`
+- **Agent Factory-created worktree** — adds a new overlay mount, since the `.git`
   file is part of the worktree directory mount rather than a separate entry.
 
 ### Rejected alternatives
@@ -85,7 +85,7 @@ The function handles both scenarios:
   is applied. Pre-start overlay mount avoids this entirely.
 
 - **Entrypoint script**: Have the container's init script detect and rewrite
-  Windows paths. Rejected because it pushes Narukami Shrine-specific logic into the
+  Windows paths. Rejected because it pushes Agent Factory-specific logic into the
   container image, making images less portable and harder to debug.
 
 - **Fall back to isolated mode on Windows**: Detect the broken case and use
@@ -101,6 +101,6 @@ The function handles both scenarios:
 - A small temp file is created per sandbox session. It is cleaned up when the
   worktree is removed; for head mode it persists in the OS temp directory until
   normal temp cleanup.
-- The `/.narukami-parent-git` path is reserved inside the sandbox. This is
+- The `/.factory-parent-git` path is reserved inside the sandbox. This is
   unlikely to conflict with anything, but it's a new convention that providers
   and container images should not use for other purposes.

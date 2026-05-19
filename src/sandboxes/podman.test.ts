@@ -548,7 +548,7 @@ describe("podman()", () => {
     const cpArgs = cpCall![1] as string[];
     expect(cpArgs[0]).toBe("cp");
     expect(cpArgs[1]).toBe("/host/file.txt");
-    expect(cpArgs[2]).toMatch(/^narukami-.*:\/sandbox\/file\.txt$/);
+    expect(cpArgs[2]).toMatch(/^factory-.*:\/sandbox\/file\.txt$/);
 
     await handle.close();
   });
@@ -579,7 +579,7 @@ describe("podman()", () => {
     expect(cpCall).toBeDefined();
     const cpArgs = cpCall![1] as string[];
     expect(cpArgs[0]).toBe("cp");
-    expect(cpArgs[1]).toMatch(/^narukami-.*:\/sandbox\/output\.txt$/);
+    expect(cpArgs[1]).toMatch(/^factory-.*:\/sandbox\/output\.txt$/);
     expect(cpArgs[2]).toBe("/host/output.txt");
 
     await handle.close();
@@ -739,8 +739,8 @@ describe("podman()", () => {
 
     // Trigger a registered exit handler
     const exitListeners = process.listeners("exit");
-    const narukamiListener = exitListeners[exitListeners.length - 1];
-    narukamiListener!(0);
+    const factoryListener = exitListeners[exitListeners.length - 1];
+    factoryListener!(0);
 
     // Check that execFileSync was called with timeout option
     const rmCall = mockExecFileSync.mock.calls.find(
@@ -756,18 +756,22 @@ describe("podman()", () => {
 
 describe("defaultImageName()", () => {
   it("derives image name from repo directory", () => {
-    expect(defaultImageName("/home/user/my-repo")).toBe("narukami:my-repo");
+    expect(defaultImageName("/home/user/my-repo")).toBe(
+      "agent-factory:my-repo",
+    );
   });
 
   it("lowercases and sanitizes the directory name", () => {
-    expect(defaultImageName("/home/user/My Repo!")).toBe("narukami:my-repo-");
+    expect(defaultImageName("/home/user/My Repo!")).toBe(
+      "agent-factory:my-repo-",
+    );
   });
 
   it("handles trailing slashes", () => {
-    expect(defaultImageName("/home/user/repo/")).toBe("narukami:repo");
+    expect(defaultImageName("/home/user/repo/")).toBe("agent-factory:repo");
   });
 
   it("falls back to 'local' for empty path", () => {
-    expect(defaultImageName("")).toBe("narukami:local");
+    expect(defaultImageName("")).toBe("agent-factory:local");
   });
 });

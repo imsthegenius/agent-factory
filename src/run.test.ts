@@ -20,7 +20,7 @@ import { Output, StructuredOutputError } from "./Output.js";
 import type { InteractiveOptions } from "./interactive.js";
 import type { WorktreeInteractiveOptions } from "./createWorktree.js";
 import { defaultImageName } from "./sandboxes/docker.js";
-import * as narukami from "./SandboxProvider.js";
+import * as factory from "./SandboxProvider.js";
 import { createBindMountSandboxProvider } from "./SandboxProvider.js";
 
 const testSandbox = createBindMountSandboxProvider({
@@ -52,7 +52,7 @@ describe("printFileDisplayStartup", () => {
       .spyOn(clack.log, "success")
       .mockImplementation(() => {});
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
     });
     expect(clackSpy).not.toHaveBeenCalled();
     clackSpy.mockRestore();
@@ -60,14 +60,14 @@ describe("printFileDisplayStartup", () => {
 
   it("uses console.log for output", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
     });
     expect(consoleSpy).toHaveBeenCalled();
   });
 
   it("shows '[Agent] Started' when no name is provided", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
     expect(allOutput).toContain("[Agent]");
@@ -76,7 +76,7 @@ describe("printFileDisplayStartup", () => {
 
   it("shows custom agent name when provided", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
       agentName: "my-run",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
@@ -85,16 +85,16 @@ describe("printFileDisplayStartup", () => {
 
   it("shows branch name when provided", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
-      branch: "narukami/issue-124-file-logging",
+      logPath: "/project/.factory/logs/main.log",
+      branch: "factory/issue-124-file-logging",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
-    expect(allOutput).toContain("narukami/issue-124-file-logging");
+    expect(allOutput).toContain("factory/issue-124-file-logging");
   });
 
   it("shows tail command with relative log path", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
     expect(allOutput).toContain("tail -f");
@@ -102,7 +102,7 @@ describe("printFileDisplayStartup", () => {
 
   it("uses bold styling for the agent name bracket", () => {
     printFileDisplayStartup({
-      logPath: "/project/.narukami/logs/main.log",
+      logPath: "/project/.factory/logs/main.log",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
     // Bold ANSI escape code
@@ -110,26 +110,26 @@ describe("printFileDisplayStartup", () => {
   });
 
   it("prints a relative log path when hostRepoDir equals process.cwd()", () => {
-    const logPath = join(process.cwd(), ".narukami", "logs", "main.log");
+    const logPath = join(process.cwd(), ".factory", "logs", "main.log");
     printFileDisplayStartup({
       logPath,
       hostRepoDir: process.cwd(),
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
-    expect(allOutput).toContain("tail -f .narukami/logs/main.log");
+    expect(allOutput).toContain("tail -f .factory/logs/main.log");
     expect(allOutput).not.toContain(process.cwd());
   });
 
   it("prints an absolute log path when hostRepoDir differs from process.cwd()", () => {
     const hostRepoDir = "/some/other/repo";
-    const logPath = join(hostRepoDir, ".narukami", "logs", "main.log");
+    const logPath = join(hostRepoDir, ".factory", "logs", "main.log");
     printFileDisplayStartup({
       logPath,
       hostRepoDir,
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
     expect(allOutput).toContain(
-      "tail -f /some/other/repo/.narukami/logs/main.log",
+      "tail -f /some/other/repo/.factory/logs/main.log",
     );
   });
 });
@@ -165,9 +165,9 @@ describe("RunResult", () => {
       stdout: "",
       commits: [],
       branch: "main",
-      logFilePath: "/path/to/narukami.log",
+      logFilePath: "/path/to/factory.log",
     };
-    expect(result.logFilePath).toBe("/path/to/narukami.log");
+    expect(result.logFilePath).toBe("/path/to/factory.log");
   });
 
   it("allows logFilePath to be absent when logging to stdout", () => {
@@ -469,7 +469,7 @@ describe("copyToWorktree with head branch strategy", () => {
 
 describe("branchStrategy on RunOptions", () => {
   it("throws when head strategy is used with an isolated provider", async () => {
-    const isolatedSandbox = narukami.createIsolatedSandboxProvider({
+    const isolatedSandbox = factory.createIsolatedSandboxProvider({
       name: "test-isolated",
       create: async () => ({
         worktreePath: "/workspace",
@@ -520,11 +520,11 @@ describe("buildRunSummaryRows", () => {
       agentName: "claude-code",
       sandboxName: "docker",
       maxIterations: 5,
-      branch: "narukami/issue-160",
+      branch: "factory/issue-160",
     });
     expect(rows["Sandbox"]).toBe("docker");
     expect(rows["Max iterations"]).toBe("5");
-    expect(rows["Branch"]).toBe("narukami/issue-160");
+    expect(rows["Branch"]).toBe("factory/issue-160");
   });
 
   it("does not include a Model row", () => {
@@ -544,8 +544,8 @@ describe("sanitizeBranchForFilename", () => {
   });
 
   it("replaces forward slashes with dashes", () => {
-    expect(sanitizeBranchForFilename("narukami/issue-87-log-file")).toBe(
-      "narukami-issue-87-log-file",
+    expect(sanitizeBranchForFilename("factory/issue-87-log-file")).toBe(
+      "factory-issue-87-log-file",
     );
   });
 
@@ -559,32 +559,36 @@ describe("sanitizeBranchForFilename", () => {
     );
   });
 
-  it("handles nested slashes like a typical narukami branch", () => {
+  it("handles nested slashes like a typical factory branch", () => {
     expect(
-      sanitizeBranchForFilename("narukami/issue-87-log-file-branch-name"),
-    ).toBe("narukami-issue-87-log-file-branch-name");
+      sanitizeBranchForFilename("factory/issue-87-log-file-branch-name"),
+    ).toBe("factory-issue-87-log-file-branch-name");
   });
 });
 
 describe("defaultImageName", () => {
-  it("returns narukami:<dir-name> for a typical repo path", () => {
+  it("returns agent-factory:<dir-name> for a typical repo path", () => {
     expect(defaultImageName("/home/user/my-project")).toBe(
-      "narukami:my-project",
+      "agent-factory:my-project",
     );
   });
 
   it("lowercases the directory name", () => {
-    expect(defaultImageName("/home/user/MyProject")).toBe("narukami:myproject");
+    expect(defaultImageName("/home/user/MyProject")).toBe(
+      "agent-factory:myproject",
+    );
   });
 
   it("replaces characters invalid in Docker image tags with dashes", () => {
     expect(defaultImageName("/home/user/my project")).toBe(
-      "narukami:my-project",
+      "agent-factory:my-project",
     );
   });
 
   it("handles paths with trailing slash gracefully", () => {
-    expect(defaultImageName("/home/user/my-repo/")).toBe("narukami:my-repo");
+    expect(defaultImageName("/home/user/my-repo/")).toBe(
+      "agent-factory:my-repo",
+    );
   });
 });
 
@@ -594,21 +598,21 @@ describe("buildLogFilename", () => {
   });
 
   it("prefixes with target branch when temp branch is used", () => {
-    expect(buildLogFilename("narukami/20260325-142719", "main")).toBe(
-      "main-narukami-20260325-142719.log",
+    expect(buildLogFilename("factory/20260325-142719", "main")).toBe(
+      "main-factory-20260325-142719.log",
     );
   });
 
   it("sanitizes target branch with slashes", () => {
-    expect(
-      buildLogFilename("narukami/20260325-142719", "feature/my-work"),
-    ).toBe("feature-my-work-narukami-20260325-142719.log");
+    expect(buildLogFilename("factory/20260325-142719", "feature/my-work")).toBe(
+      "feature-my-work-factory-20260325-142719.log",
+    );
   });
 
   it("includes agent name when branch contains agent segment", () => {
     expect(
-      buildLogFilename("narukami/claude-code/20260325-142719", "main"),
-    ).toBe("main-narukami-claude-code-20260325-142719.log");
+      buildLogFilename("factory/claude-code/20260325-142719", "main"),
+    ).toBe("main-factory-claude-code-20260325-142719.log");
   });
 
   it("appends run name when name is provided", () => {
@@ -619,8 +623,8 @@ describe("buildLogFilename", () => {
 
   it("appends run name after target branch prefix", () => {
     expect(
-      buildLogFilename("narukami/20260325-142719", "main", "reviewer"),
-    ).toBe("main-narukami-20260325-142719-reviewer.log");
+      buildLogFilename("factory/20260325-142719", "main", "reviewer"),
+    ).toBe("main-factory-20260325-142719-reviewer.log");
   });
 
   it("sanitizes run name for filename use", () => {
@@ -644,7 +648,7 @@ describe("promptFile resolution with cwd", () => {
     // ADR 0002 regression: promptFile must resolve against process.cwd()
     // regardless of what cwd is set to. This locks in the decision so it
     // is not accidentally reversed.
-    const cwdDir = mkdtempSync(join(tmpdir(), "narukami-cwd-"));
+    const cwdDir = mkdtempSync(join(tmpdir(), "factory-cwd-"));
 
     // Use a relative promptFile path that does not exist under either
     // process.cwd() or the custom cwd. The error message must reference
@@ -727,7 +731,7 @@ describe("run() error logging to file", () => {
   });
 
   it("writes SandboxError to log file when using file logging", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "narukami-run-error-"));
+    const dir = mkdtempSync(join(tmpdir(), "factory-run-error-"));
     const logPath = join(dir, "test.log");
     const promptFile = join(dir, "prompt.md");
     writeFileSync(promptFile, "test prompt");
@@ -749,7 +753,7 @@ describe("run() error logging to file", () => {
   });
 
   it("still propagates the error as a rejected promise", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "narukami-run-error-"));
+    const dir = mkdtempSync(join(tmpdir(), "factory-run-error-"));
     const logPath = join(dir, "test.log");
     const promptFile = join(dir, "prompt.md");
     writeFileSync(promptFile, "test prompt");

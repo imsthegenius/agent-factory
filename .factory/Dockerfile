@@ -15,25 +15,22 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get update && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
 
-# Build-args for UID/GID alignment: narukami docker build-image
+# Build-args for UID/GID alignment: factory docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 
+# Install Pi coding agent (run as root before USER agent)
+RUN npm install -g @earendil-works/pi-coding-agent
+
 # Rename the base image's "node" user to "agent" and align UID/GID.
 RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
 USER ${AGENT_UID}:${AGENT_GID}
 
-# Install Claude Code CLI
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
-# Add Claude to PATH
-ENV PATH="/home/agent/.local/bin:$PATH"
-
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Narukami bind-mounts the git worktree at /home/agent/workspace
+# In worktree sandbox mode, Agent Factory bind-mounts the git worktree at /home/agent/workspace
 # and overrides the working directory to /home/agent/workspace at container start.
 # Structure your Dockerfile so that /home/agent/workspace can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]

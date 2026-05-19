@@ -29,7 +29,7 @@ export const testIsolated = (): IsolatedSandboxProvider =>
   createIsolatedSandboxProvider({
     name: "test-isolated",
     create: async (): Promise<IsolatedSandboxHandle> => {
-      const sandboxRoot = await mkdtemp(join(tmpdir(), "narukami-test-"));
+      const sandboxRoot = await mkdtemp(join(tmpdir(), "factory-test-"));
       const worktreePath = join(sandboxRoot, "workspace");
       await mkdir(worktreePath, { recursive: true });
 

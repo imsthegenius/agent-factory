@@ -126,7 +126,7 @@ const makeTestSandboxFactory = (
         // Acquire: create fresh worktree from host repo
         Effect.promise(async () => {
           await rm(sandboxBaseDir, { recursive: true, force: true });
-          const branchName = `narukami/test-${++branchCounter}`;
+          const branchName = `factory/test-${++branchCounter}`;
           await execAsync(
             `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
             { cwd: hostRepoDir },
@@ -751,7 +751,7 @@ describe("OrchestrateResult", () => {
         Effect.acquireUseRelease(
           Effect.promise(async () => {
             await rm(sandboxBaseDir, { recursive: true, force: true });
-            const branchName = `narukami/test-${++branchCounter}`;
+            const branchName = `factory/test-${++branchCounter}`;
             await execAsync(
               `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
               { cwd: hostDir },
@@ -3252,7 +3252,7 @@ describe("Session capture integration", () => {
         Effect.acquireUseRelease(
           Effect.promise(async () => {
             await rm(sandboxBaseDir, { recursive: true, force: true });
-            const branchName = `narukami/test-${++branchCounter}`;
+            const branchName = `factory/test-${++branchCounter}`;
             await execAsync(
               `git worktree add -b "${branchName}" "${sandboxBaseDir}" HEAD`,
               { cwd: hostRepoDir },

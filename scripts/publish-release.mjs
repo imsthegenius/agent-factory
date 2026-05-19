@@ -118,7 +118,7 @@ const releaseNotes = () => `# ${packageName} ${version}
 - Package: [${packageName}@${version}](${npmPackageUrl})
 - Install: \`npm install --save-dev ${packageName}@${version}\`
 - pnpm: \`pnpm add -D ${packageName}@${version}\`
-- CLI: \`pnpm exec narukami --version\`
+- CLI: \`pnpm exec factory --version\`
 
 ## Verification
 
@@ -126,7 +126,7 @@ This release was prepared from tag \`${tag}\`.
 `;
 
 const createOrUpdateGithubRelease = async () => {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "narukami-release-"));
+  const tempDir = await mkdtemp(path.join(tmpdir(), "factory-release-"));
   const notesPath = path.join(tempDir, "release-notes.md");
 
   try {

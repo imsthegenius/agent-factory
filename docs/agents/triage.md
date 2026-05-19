@@ -1,6 +1,6 @@
 # Linear Triage Labels
 
-Narukami Shrine's Linear-first templates assume the agent can identify actionable work from a small, stable label vocabulary. Use these labels in Linear unless your team already has equivalent names.
+Agent Factory's Linear-first templates assume the agent can identify actionable work from a small, stable label vocabulary. Use these labels in Linear unless your team already has equivalent names.
 
 | Role            | Recommended Linear label | Meaning                                  |
 | --------------- | ------------------------ | ---------------------------------------- |

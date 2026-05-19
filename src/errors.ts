@@ -49,7 +49,7 @@ export class AgentError extends Data.TaggedError("AgentError")<{
   readonly preservedWorktreePath?: string;
 }> {}
 
-/** .narukami/ config directory missing */
+/** .factory/ config directory missing */
 export class ConfigDirError extends Data.TaggedError("ConfigDirError")<{
   readonly message: string;
 }> {}

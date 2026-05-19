@@ -30,7 +30,7 @@ export type OutputDefinition =
  * Helpers for declaring structured output on `run()`.
  *
  * ```ts
- * import { Output, run } from "@yae-tools/narukami-shrine";
+ * import { Output, run } from "@imsthegenius/agent-factory";
  * import { z } from "zod";
  *
  * const result = await run({

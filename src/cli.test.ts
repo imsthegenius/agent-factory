@@ -29,10 +29,10 @@ const cliPath = join(import.meta.dirname, "..", "dist", "main.js");
 const runCli = (args: string, cwd: string, env?: NodeJS.ProcessEnv) =>
   execAsync(`node ${cliPath} ${args}`, { cwd, env });
 
-describe("narukami CLI", () => {
+describe("factory CLI", () => {
   it("shows help with --help flag", async () => {
     const { stdout } = await runCli("--help", process.cwd());
-    expect(stdout).toContain("narukami");
+    expect(stdout).toContain("factory");
     expect(stdout).toContain("docker");
     expect(stdout).toContain("init");
     expect(stdout).not.toContain("run");
@@ -48,12 +48,12 @@ describe("narukami CLI", () => {
     expect(stdout).not.toContain("sync-out");
   });
 
-  it("runs .narukami/main.mts when invoked without a subcommand", async () => {
+  it("runs .factory/main.mts when invoked without a subcommand", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
     const binDir = await mkdtemp(join(tmpdir(), "cli-bin-"));
     const outputPath = join(hostDir, "npx-args.txt");
-    await mkdir(join(hostDir, ".narukami"));
-    await writeFile(join(hostDir, ".narukami", "main.mts"), "// test\n");
+    await mkdir(join(hostDir, ".factory"));
+    await writeFile(join(hostDir, ".factory", "main.mts"), "// test\n");
 
     const fakeNpx = join(binDir, "npx");
     await writeFile(
@@ -69,7 +69,7 @@ describe("narukami CLI", () => {
     });
 
     await expect(readFile(outputPath, "utf-8")).resolves.toBe(
-      "--yes tsx ./.narukami/main.mts\n",
+      "--yes tsx ./.factory/main.mts\n",
     );
   });
 
@@ -79,7 +79,7 @@ describe("narukami CLI", () => {
     expect(stdout).toContain("remove-image");
   });
 
-  it("docker build-image errors when .narukami/ is missing", async () => {
+  it("docker build-image errors when .factory/ is missing", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
@@ -90,7 +90,7 @@ describe("narukami CLI", () => {
     } catch (err: unknown) {
       const { stdout, stderr } = err as { stdout: string; stderr: string };
       const output = stdout + stderr;
-      expect(output).toContain("No .narukami/ found");
+      expect(output).toContain("No .factory/ found");
     }
   });
 
@@ -175,7 +175,7 @@ describe("narukami CLI", () => {
     expect(stdout).toContain("--image-name");
   });
 
-  it("podman build-image errors when .narukami/ is missing", async () => {
+  it("podman build-image errors when .factory/ is missing", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial commit");
@@ -186,7 +186,7 @@ describe("narukami CLI", () => {
     } catch (err: unknown) {
       const { stdout, stderr } = err as { stdout: string; stderr: string };
       const output = stdout + stderr;
-      expect(output).toContain("No .narukami/ found");
+      expect(output).toContain("No .factory/ found");
     }
   });
 

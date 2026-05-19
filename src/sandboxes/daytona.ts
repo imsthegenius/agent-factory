@@ -61,7 +61,7 @@ export interface DaytonaOptions {
  *
  * @example
  * ```ts
- * import { daytona } from "@yae-tools/narukami-shrine/sandboxes/daytona";
+ * import { daytona } from "@imsthegenius/agent-factory/sandboxes/daytona";
  *
  * const provider = daytona({ apiKey: "dyt_my_key" });
  * ```
@@ -101,7 +101,7 @@ export const daytona = (options?: DaytonaOptions): IsolatedSandboxProvider =>
           const effectiveCommand = opts?.sudo ? `sudo ${command}` : command;
           if (opts?.onLine) {
             const onLine = opts.onLine;
-            const sessionId = `narukami-${crypto.randomUUID()}`;
+            const sessionId = `factory-${crypto.randomUUID()}`;
             await sandbox.process.createSession(sessionId);
 
             try {

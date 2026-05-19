@@ -1,16 +1,16 @@
 ---
 title: Getting Started
-description: Learn how to use Narukami Shrine to orchestrate Codex against Linear issues in isolated sandbox environments.
+description: Learn how to use Agent Factory to orchestrate Codex against Linear issues in isolated sandbox environments.
 ---
 
-## What is Narukami Shrine?
+## What is Agent Factory?
 
-Narukami Shrine is a TypeScript CLI tool for running Codex against Linear-tracked work inside isolated sandbox environments. It manages the full lifecycle of syncing code into a sandbox, invoking the agent, and syncing changes back.
+Agent Factory is a TypeScript CLI tool for running Codex against Linear-tracked work inside isolated sandbox environments. It manages the full lifecycle of syncing code into a sandbox, invoking the agent, and syncing changes back.
 
 ## Key Concepts
 
 - **Sandbox** -- An isolated environment (Docker container or local directory) where an agent executes code
-- **Host** -- Your machine where Narukami Shrine runs and the real git repo lives
+- **Host** -- Your machine where Agent Factory runs and the real git repo lives
 - **Agent** -- The AI coding tool invoked inside the sandbox (e.g. Codex)
 - **Iteration** -- A single invocation of the agent, producing at most one commit
 
@@ -19,23 +19,23 @@ Narukami Shrine is a TypeScript CLI tool for running Codex against Linear-tracke
 ### 1. Install
 
 ```bash
-npm install -g @yae-tools/narukami-shrine
+npm install -g @imsthegenius/agent-factory
 ```
 
 ### 2. Initialize
 
-Run `narukami init` in your repository to scaffold the config directory:
+Run `factory init` in your repository to scaffold the config directory:
 
 ```bash
-narukami init
+factory init
 ```
 
-This creates a `.narukami/` directory with a Dockerfile, prompt file, and configuration.
+This creates a `.factory/` directory with a Dockerfile, prompt file, and configuration.
 
 ### 3. Run
 
 ```bash
-narukami
+factory
 ```
 
-Narukami Shrine will build the Docker image, sync your code into the sandbox, and start Codex.
+Agent Factory will build the Docker image, sync your code into the sandbox, and start Codex.

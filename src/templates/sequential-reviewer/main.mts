@@ -16,12 +16,12 @@
 // gate) and the parallel-planner (concurrent execution with a planning phase).
 //
 // Usage:
-//   npx tsx .narukami/main.mts
+//   npx tsx .factory/main.mts
 // Or add to package.json:
-//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
+//   "scripts": { "factory": "npx tsx .factory/main.mts" }
 
-import * as narukami from "@yae-tools/narukami-shrine";
-import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import * as factory from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
 import { execFileSync, execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ const hooks = {
 const copyToWorktree: string[] = [];
 
 // Codex review has built-in review instructions, so no prompt is needed by
-// default. Set this to "./.narukami/review-prompt.md" to add custom review
+// default. Set this to "./.factory/review-prompt.md" to add custom review
 // instructions, or when using a general agent provider for review.
 const reviewPromptFile: string | undefined = undefined;
 
@@ -111,9 +111,9 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const reviewBase = execSync("git rev-parse HEAD", {
     encoding: "utf8",
   }).trim();
-  const branch = `narukami/sequential-reviewer/${Date.now()}`;
+  const branch = `factory/sequential-reviewer/${Date.now()}`;
 
-  const sandbox = await narukami.createSandbox({
+  const sandbox = await factory.createSandbox({
     branch,
     sandbox: docker(),
     hooks,
@@ -134,8 +134,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 100,
-      agent: narukami.codex("gpt-5.5", { effort: "low" }),
-      promptFile: "./.narukami/implement-prompt.md",
+      agent: factory.codex("gpt-5.5", { effort: "low" }),
+      promptFile: "./.factory/implement-prompt.md",
     });
 
     if (!implement.commits.length) {
@@ -152,7 +152,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     console.log(`\nImplementation complete on branch: ${branch}`);
     console.log(`Commits: ${implement.commits.length}`);
 
-    const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
+    const repairAgent = factory.codex("gpt-5.5", { effort: "low" });
     let repairResumeSession =
       repairAgent.name === "codex"
         ? implement.iterations.at(-1)?.sessionId
@@ -168,7 +168,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     let review = await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
-      agent: narukami.codexReview("gpt-5.5", {
+      agent: factory.codexReview("gpt-5.5", {
         effort: "low",
         base: reviewBase,
       }),
@@ -222,7 +222,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       review = await sandbox.run({
         name: "reviewer",
         maxIterations: 1,
-        agent: narukami.codexReview("gpt-5.5", {
+        agent: factory.codexReview("gpt-5.5", {
           effort: "low",
           base: reviewBase,
         }),

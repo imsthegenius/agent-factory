@@ -59,11 +59,11 @@ export interface CreateSandboxOptions {
    * already exists. Defaults to `HEAD`.
    */
   readonly baseBranch?: string;
-  /** Sandbox provider (e.g. docker({ imageName: "narukami:myrepo" })). */
+  /** Sandbox provider (e.g. docker({ imageName: "agent-factory:myrepo" })). */
   readonly sandbox: SandboxProvider;
   /**
    * Host repo directory. Replaces `process.cwd()` as the anchor for
-   * `.narukami/worktrees/`, `.narukami/.env`, and git operations.
+   * `.factory/worktrees/`, `.factory/.env`, and git operations.
    *
    * - Relative paths are resolved against `process.cwd()`.
    * - Absolute paths are used as-is.
@@ -297,7 +297,7 @@ const buildSandboxHandle = (
         type: "file",
         path: join(
           hostRepoDir,
-          ".narukami",
+          ".factory",
           "logs",
           buildLogFilename(branch, undefined, runOptions.name),
         ),
@@ -350,7 +350,7 @@ const buildSandboxHandle = (
         result = await Effect.runPromise(
           Effect.gen(function* () {
             const display = yield* Display;
-            yield* display.intro(runOptions.name ?? "narukami");
+            yield* display.intro(runOptions.name ?? "factory");
 
             return yield* orchestrate({
               hostRepoDir,

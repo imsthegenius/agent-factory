@@ -12,12 +12,12 @@
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .narukami/main.mts
+//   npx tsx .factory/main.mts
 // Or add to package.json:
-//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
+//   "scripts": { "factory": "npx tsx .factory/main.mts" }
 
-import * as narukami from "@yae-tools/narukami-shrine";
-import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import * as factory from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -53,7 +53,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   //
   // It outputs a <plan> JSON block — we parse that to drive Phase 2.
   // -------------------------------------------------------------------------
-  const plan = await narukami.run({
+  const plan = await factory.run({
     hooks,
     sandbox: docker(),
     name: "planner",
@@ -61,8 +61,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // not write code.
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected planning agent.
-    agent: narukami.codex("gpt-5.5", { effort: "low" }),
-    promptFile: "./.narukami/plan-prompt.md",
+    agent: factory.codex("gpt-5.5", { effort: "low" }),
+    promptFile: "./.factory/plan-prompt.md",
   });
 
   // Extract the <plan>…</plan> block from the agent's stdout.
@@ -102,7 +102,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   const settled = await Promise.allSettled(
     issues.map((issue) =>
-      narukami.run({
+      factory.run({
         hooks,
         copyToWorktree,
         // Each agent starts on its own branch via branchStrategy on run().
@@ -112,8 +112,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         // Give each agent plenty of room to implement and iterate on tests.
         maxIterations: 100,
         // The scaffold rewrites this placeholder to your selected implementation agent.
-        agent: narukami.codex("gpt-5.5", { effort: "low" }),
-        promptFile: "./.narukami/implement-prompt.md",
+        agent: factory.codex("gpt-5.5", { effort: "low" }),
+        promptFile: "./.factory/implement-prompt.md",
         // Prompt arguments substitute {{TASK_ID}}, {{ISSUE_TITLE}},
         // and {{BRANCH}} placeholders in implement-prompt.md before the
         // agent sees the prompt.
@@ -144,7 +144,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         entry,
       ): entry is {
         outcome: PromiseFulfilledResult<
-          Awaited<ReturnType<typeof narukami.run>>
+          Awaited<ReturnType<typeof factory.run>>
         >;
         issue: (typeof issues)[number];
       } =>
@@ -177,14 +177,14 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
-  await narukami.run({
+  await factory.run({
     hooks,
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected merge agent.
-    agent: narukami.codex("gpt-5.5", { effort: "low" }),
-    promptFile: "./.narukami/merge-prompt.md",
+    agent: factory.codex("gpt-5.5", { effort: "low" }),
+    promptFile: "./.factory/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),

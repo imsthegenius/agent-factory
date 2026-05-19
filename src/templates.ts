@@ -12,7 +12,7 @@ export const SKELETON_PROMPT =
   "`" +
   ` or !` +
   "`" +
-  `gh issue list --label Narukami Shrine --json number,title` +
+  `gh issue list --label Agent Factory --json number,title` +
   "`" +
   ` -->
 

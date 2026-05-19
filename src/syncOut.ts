@@ -3,7 +3,7 @@
  *
  * Two-phase approach:
  * 1. Save phase: eagerly save all artifacts (patches, diff, untracked files)
- *    to `.narukami/patches/<timestamp>/` before attempting to apply.
+ *    to `.factory/patches/<timestamp>/` before attempting to apply.
  * 2. Apply phase: apply from the saved directory.
  *    - On success: clean up the patch directory.
  *    - On failure: preserve the patch directory and print recovery commands.
@@ -134,7 +134,7 @@ const createPatchDir = (
       const pad = (n: number) => String(n).padStart(2, "0");
       const base = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 
-      const patchesRoot = join(hostRepoDir, ".narukami", "patches");
+      const patchesRoot = join(hostRepoDir, ".factory", "patches");
       await mkdir(patchesRoot, { recursive: true });
 
       let dirName = base;
@@ -158,7 +158,7 @@ const createPatchDir = (
  * Sync changes from an isolated sandbox back to the host repo.
  *
  * Two-phase extraction with artifact persistence:
- * 1. Save all artifacts to `.narukami/patches/<timestamp>/`
+ * 1. Save all artifacts to `.factory/patches/<timestamp>/`
  * 2. Apply from saved directory; on failure, preserve artifacts and print recovery
  */
 export const syncOut = (
@@ -219,7 +219,7 @@ export const syncOut = (
 
     // --- Phase 1: Save all artifacts ---
     const patchDir = yield* createPatchDir(hostRepoDir);
-    const relativePatchDir = join(".narukami", "patches", basename(patchDir));
+    const relativePatchDir = join(".factory", "patches", basename(patchDir));
 
     const nonEmptyPatches: string[] = [];
 
@@ -227,7 +227,7 @@ export const syncOut = (
     if (hasCommits) {
       const mkTempResult = yield* execOk(
         handle,
-        "mktemp -d -t narukami-patches-XXXXXX",
+        "mktemp -d -t factory-patches-XXXXXX",
       );
       const sandboxPatchDir = mkTempResult.stdout.trim();
 
@@ -363,11 +363,11 @@ export const syncOut = (
       yield* Effect.tryPromise({
         try: async () => {
           await rm(patchDir, { recursive: true, force: true });
-          const patchesRoot = join(hostRepoDir, ".narukami", "patches");
+          const patchesRoot = join(hostRepoDir, ".factory", "patches");
           try {
             const remaining = await readdir(patchesRoot);
             if (remaining.length === 0) {
-              await rm(join(hostRepoDir, ".narukami"), {
+              await rm(join(hostRepoDir, ".factory"), {
                 recursive: true,
                 force: true,
               });

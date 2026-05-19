@@ -1,13 +1,13 @@
-import * as sandcastle from "@ai-hero/sandcastle";
-import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import * as factory from "@imsthegenius/agent-factory";
+import { noSandbox } from "@imsthegenius/agent-factory/sandboxes/no-sandbox";
 
 // /matt-pococks-projects/sandcastle
-const { commits, branch } = await sandcastle.interactive({
+const { commits, branch } = await factory.interactive({
   branchStrategy: {
     type: "merge-to-head",
   },
   name: "Test",
-  agent: sandcastle.claudeCode("claude-sonnet-4-6"),
+  agent: factory.pi("openai-codex/gpt-5.5"),
   prompt: "Add /foobar to the .gitignore, then commit.",
   copyToWorkspace: ["node_modules"],
 });

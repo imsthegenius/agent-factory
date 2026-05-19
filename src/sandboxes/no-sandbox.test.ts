@@ -84,11 +84,11 @@ describe("noSandbox", () => {
       const provider = noSandbox();
       const handle = await provider.create({
         worktreePath: process.cwd(),
-        env: { MY_TEST_VAR: "narukami_test_value" },
+        env: { MY_TEST_VAR: "factory_test_value" },
       });
 
       const result = await handle.exec("echo $MY_TEST_VAR");
-      expect(result.stdout.trim()).toBe("narukami_test_value");
+      expect(result.stdout.trim()).toBe("factory_test_value");
     });
 
     it("interactiveExec spawns process and returns exit code", async () => {

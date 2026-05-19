@@ -199,7 +199,7 @@ describe("createSandbox", () => {
 
     try {
       expect(sandbox.branch).toBe("test-branch");
-      expect(sandbox.worktreePath).toContain(".narukami/worktrees");
+      expect(sandbox.worktreePath).toContain(".factory/worktrees");
       expect(existsSync(sandbox.worktreePath)).toBe(true);
     } finally {
       await sandbox.close();
@@ -781,7 +781,7 @@ describe("createSandbox", () => {
 
     try {
       expect(sandbox.branch).toBe("test-isolated-branch");
-      expect(sandbox.worktreePath).toContain(".narukami/worktrees");
+      expect(sandbox.worktreePath).toContain(".factory/worktrees");
       expect(existsSync(sandbox.worktreePath)).toBe(true);
     } finally {
       await sandbox.close();

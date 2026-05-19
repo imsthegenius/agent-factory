@@ -18,8 +18,11 @@
  * the daemon. Commits landed on FACTORY_BRANCH will be pushed and opened
  * as a PR automatically.
  */
-import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import * as factory from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
+
+const sandboxProvider = () =>
+  docker({ mounts: [{ hostPath: "~/.pi/agent", sandboxPath: "~/.pi/agent" }] });
 
 const branch = process.env["FACTORY_BRANCH"]!;
 const base = process.env["FACTORY_BASE"];
@@ -27,7 +30,7 @@ const repoPath = process.env["FACTORY_REPO_PATH"];
 const taskDescription = process.env["FACTORY_TASK_DESCRIPTION"]!;
 const issueNumber = process.env["FACTORY_TASK_ISSUE_NUMBER"]!;
 
-await using worktree = await sandcastle.createWorktree({
+await using worktree = await factory.createWorktree({
   cwd: repoPath,
   branchStrategy: {
     type: "branch",
@@ -43,13 +46,13 @@ await using worktree = await sandcastle.createWorktree({
 });
 
 await using sandbox = await worktree.createSandbox({
-  sandbox: docker(),
+  sandbox: sandboxProvider(),
 });
 
 const result = await sandbox.run({
   name: "Implementer #" + issueNumber,
-  agent: sandcastle.claudeCode("claude-opus-4-6"),
-  promptFile: "./.sandcastle/implement-prompt.md",
+  agent: factory.pi("openai-codex/gpt-5.5"),
+  promptFile: "./.factory/implement-prompt.md",
   promptArgs: {
     ISSUE_NUMBER: String(issueNumber),
     ISSUE_TITLE: taskDescription,
@@ -60,8 +63,8 @@ const result = await sandbox.run({
 if (result.commits.length > 0) {
   await sandbox.run({
     name: "Reviewer #" + issueNumber,
-    agent: sandcastle.claudeCode("claude-opus-4-6"),
-    promptFile: "./.sandcastle/review-prompt.md",
+    agent: factory.pi("openai-codex/gpt-5.5"),
+    promptFile: "./.factory/review-prompt.md",
     promptArgs: {
       ISSUE_NUMBER: String(issueNumber),
       ISSUE_TITLE: taskDescription,

@@ -25,11 +25,11 @@ export type SelinuxLabel = "z" | "Z" | false;
  * Deterministic mount point inside the sandbox for the parent repo's .git
  * directory when the workspace is a git worktree. See ADR-0006.
  */
-export const PARENT_GIT_SANDBOX_DIR = "/.narukami-parent-git";
+export const PARENT_GIT_SANDBOX_DIR = "/.factory-parent-git";
 
 /**
  * Derive the default image name from the repo directory.
- * Returns `narukami:<dir-name>` where dir-name is the last path segment,
+ * Returns `agent-factory:<dir-name>` where dir-name is the last path segment,
  * lowercased and sanitized for image tag rules.
  *
  * Handles both POSIX (`/`) and Windows (`\`) path separators.
@@ -41,7 +41,7 @@ export const defaultImageName = (repoDir: string): string => {
       .split(/[\\/]/)
       .pop() ?? "local";
   const sanitized = dirName.toLowerCase().replace(/[^a-z0-9_.-]/g, "-");
-  return `narukami:${sanitized || "local"}`;
+  return `agent-factory:${sanitized || "local"}`;
 };
 
 /**
@@ -260,7 +260,7 @@ export const patchGitMountsForWindows = async (
 
   // Create a temp file with the corrected gitdir content
   const correctedGitdir = `${PARENT_GIT_SANDBOX_DIR}/worktrees/${worktreeName}`;
-  const tempDir = await mkdtemp(join(tmpdir(), "narukami-git-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "factory-git-"));
   const tempGitFile = join(tempDir, "git-override");
   await writeFile(tempGitFile, `gitdir: ${correctedGitdir}\n`);
 
@@ -289,7 +289,7 @@ export const patchGitMountsForWindows = async (
     }
   }
 
-  // If the .git file wasn't in gitMounts (Narukami Shrine-created worktree),
+  // If the .git file wasn't in gitMounts (Agent Factory-created worktree),
   // add an overlay mount for the corrected .git file
   if (!replacedGitFile) {
     correctedMounts.push({

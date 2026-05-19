@@ -26,11 +26,11 @@ const podmanExec = (args: string[]): Effect.Effect<string, PodmanError> =>
   });
 
 /**
- * Build the narukami Podman image.
+ * Build the factory Podman image.
  *
  * When `containerfile` is provided, uses `podman build -f <containerfile> <cwd>`
  * so COPY instructions resolve relative to the current working directory.
- * Otherwise, uses `podman build <containerfileDir>` (the default .narukami/ directory).
+ * Otherwise, uses `podman build <containerfileDir>` (the default .factory/ directory).
  */
 export const buildImage = (
   imageName: string,

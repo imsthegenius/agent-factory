@@ -88,7 +88,7 @@ RUN apt-get update && apt-get install -y \\
 
 {{PACKAGE_MANAGER_TOOLS}}
 
-# Build-args for UID/GID alignment: narukami docker build-image
+# Build-args for UID/GID alignment: factory docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.
 ARG AGENT_UID=1000
@@ -105,7 +105,7 @@ ENV PATH="/home/agent/.local/bin:$PATH"
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Agent Factory bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -125,7 +125,7 @@ RUN apt-get update && apt-get install -y \\
 
 {{PACKAGE_MANAGER_TOOLS}}
 
-# Build-args for UID/GID alignment: narukami docker build-image
+# Build-args for UID/GID alignment: factory docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.
 ARG AGENT_UID=1000
@@ -134,13 +134,13 @@ ARG AGENT_GID=1000
 ${DOCKER_AGENT_USER_SETUP}
 
 # Install pi coding agent (run as root before USER agent)
-RUN npm install -g @mariozechner/pi-coding-agent
+RUN npm install -g @earendil-works/pi-coding-agent
 
 USER \${AGENT_UID}:\${AGENT_GID}
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Agent Factory bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -160,7 +160,7 @@ RUN apt-get update && apt-get install -y \\
 
 {{PACKAGE_MANAGER_TOOLS}}
 
-# Build-args for UID/GID alignment: narukami docker build-image
+# Build-args for UID/GID alignment: factory docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.
 ARG AGENT_UID=1000
@@ -175,7 +175,7 @@ USER \${AGENT_UID}:\${AGENT_GID}
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Agent Factory bind-mounts the git worktree at ${SANDBOX_REPO_DIR}
 # and overrides the working directory to ${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that ${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -195,7 +195,7 @@ RUN apt-get update && apt-get install -y \\
 
 {{PACKAGE_MANAGER_TOOLS}}
 
-# Build-args for UID/GID alignment: narukami docker build-image
+# Build-args for UID/GID alignment: factory docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.
 ARG AGENT_UID=1000
@@ -210,7 +210,7 @@ USER \${AGENT_UID}:\${AGENT_GID}
 
 WORKDIR /home/agent
 
-# In worktree sandbox mode, Narukami Shrine bind-mounts the git worktree at \${SANDBOX_REPO_DIR}
+# In worktree sandbox mode, Agent Factory bind-mounts the git worktree at \${SANDBOX_REPO_DIR}
 # and overrides the working directory to \${SANDBOX_REPO_DIR} at container start.
 # Structure your Dockerfile so that \${SANDBOX_REPO_DIR} can serve as the project root.
 ENTRYPOINT ["sleep", "infinity"]
@@ -240,11 +240,12 @@ ANTHROPIC_API_KEY=`,
   {
     name: "pi",
     label: "Pi",
-    defaultModel: "claude-sonnet-4-6",
+    defaultModel: "openai-codex/gpt-5.5",
     factoryImport: "pi",
     dockerfileTemplate: PI_DOCKERFILE,
-    envExample: `# Anthropic API key
-ANTHROPIC_API_KEY=`,
+    envExample: `# Pi uses the host Pi agent auth by default.
+# Run \`pi\` on the host first, then mount ~/.pi/agent into the sandbox.
+# The default model is openai-codex/gpt-5.5.`,
   },
   {
     name: "opencode",
@@ -312,7 +313,7 @@ const ISSUE_PROVIDER_REGISTRY: IssueProviderEntry[] = [
       VIEW_TASK_COMMAND:
         "Use the Linear MCP tool to read issue <ID>, including description, comments, labels, attachments, and linked or parent issues.",
       CLOSE_TASK_COMMAND:
-        'Use the Linear MCP tool to comment on <ID> with "Completed by Narukami Shrine" and move it to a completed state.',
+        'Use the Linear MCP tool to comment on <ID> with "Completed by Agent Factory" and move it to a completed state.',
       ISSUE_PROVIDER_TOOLS:
         "# Linear issue tracking uses the Linear MCP tool configured for the agent",
     },
@@ -323,9 +324,9 @@ const ISSUE_PROVIDER_REGISTRY: IssueProviderEntry[] = [
     name: "github-issues",
     label: "GitHub Issues",
     templateArgs: {
-      LIST_TASKS_COMMAND: `gh issue list --state open --label Narukami Shrine --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`,
+      LIST_TASKS_COMMAND: `gh issue list --state open --label Agent Factory --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`,
       VIEW_TASK_COMMAND: "gh issue view <ID>",
-      CLOSE_TASK_COMMAND: `gh issue close <ID> --comment "Completed by Narukami Shrine"`,
+      CLOSE_TASK_COMMAND: `gh issue close <ID> --comment "Completed by Agent Factory"`,
       ISSUE_PROVIDER_TOOLS: GITHUB_CLI_TOOLS,
     },
     envExample: `# GitHub personal access token
@@ -337,7 +338,7 @@ GH_TOKEN=`,
     templateArgs: {
       LIST_TASKS_COMMAND: "bd ready --json",
       VIEW_TASK_COMMAND: "bd show <ID>",
-      CLOSE_TASK_COMMAND: `bd close <ID> "Completed by Narukami Shrine"`,
+      CLOSE_TASK_COMMAND: `bd close <ID> "Completed by Agent Factory"`,
       ISSUE_PROVIDER_TOOLS: BEADS_TOOLS,
     },
     envExample: "",
@@ -362,7 +363,7 @@ export const getAgent = (name: string): AgentEntry | undefined =>
 export interface SandboxProviderEntry {
   readonly name: string;
   readonly label: string;
-  /** Filename written to .narukami/ (e.g. "Dockerfile" or "Containerfile") */
+  /** Filename written to .factory/ (e.g. "Dockerfile" or "Containerfile") */
   readonly containerfileName: string;
   /** CLI namespace for build/remove commands (e.g. "docker" or "podman") */
   readonly cliNamespace: string;
@@ -403,7 +404,7 @@ export interface SandboxToolEntry {
   readonly envExample: (options: { readonly sonarHostUrl?: string }) => string;
 }
 
-const SONAR_SCANNER_TOOLS = `# narukami-tool:sonar-scanner:start
+const SONAR_SCANNER_TOOLS = `# factory-tool:sonar-scanner:start
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
 # Install SonarScanner CLI for repos whose quality gates call sonar-scanner.
@@ -424,7 +425,7 @@ RUN set -eux; \\
   ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner; \\
   rm /tmp/sonar-scanner.zip; \\
   rm -rf /var/lib/apt/lists/*
-# narukami-tool:sonar-scanner:end`;
+# factory-tool:sonar-scanner:end`;
 
 const SANDBOX_TOOL_REGISTRY: SandboxToolEntry[] = [
   {
@@ -432,12 +433,12 @@ const SANDBOX_TOOL_REGISTRY: SandboxToolEntry[] = [
     label: "SonarScanner CLI",
     hint: "Installs sonar-scanner for SonarQube/SonarCloud quality gates",
     containerfileTools: SONAR_SCANNER_TOOLS,
-    envExample: ({ sonarHostUrl }) => `# narukami-env:sonar-scanner:start
+    envExample: ({ sonarHostUrl }) => `# factory-env:sonar-scanner:start
 # SonarScanner CLI (optional; required only if your repo quality gates run sonar-scanner)
 # For local SonarQube on Docker Desktop, try http://host.docker.internal:9000
 SONAR_HOST_URL=${sonarHostUrl ?? ""}
 SONAR_TOKEN=
-# narukami-env:sonar-scanner:end`,
+# factory-env:sonar-scanner:end`,
   },
 ];
 
@@ -453,7 +454,7 @@ const removeMarkedBlock = (
 ) =>
   content.replace(
     new RegExp(
-      `\\n?# narukami-${markerKind}:${toolName}:start[\\s\\S]*?# narukami-${markerKind}:${toolName}:end\\n?`,
+      `\\n?# factory-${markerKind}:${toolName}:start[\\s\\S]*?# factory-${markerKind}:${toolName}:end\\n?`,
       "g",
     ),
     "\n",
@@ -478,7 +479,7 @@ export const removeSandboxToolFromConfig = (
     }
 
     const fs = yield* FileSystem.FileSystem;
-    const configDir = join(repoDir, ".narukami");
+    const configDir = join(repoDir, ".factory");
     const containerfileCandidates = ["Dockerfile", "Containerfile"].map(
       (file) => join(configDir, file),
     );
@@ -541,30 +542,30 @@ export function getNextStepsLines(
   if (template === "blank") {
     return [
       "Next steps:",
-      `1. Set the required env vars in .narukami/.env (see .narukami/.env.example)`,
-      "   For Codex subscription auth, run `codex login` on the host before starting the sandbox",
-      "2. Read and customize .narukami/prompt.md to describe what you want the agent to do",
-      `3. Customize .narukami/${mainFilename} — it uses the JS API (\`run()\`) to control how the agent runs`,
-      `4. Add "narukami": "npx tsx .narukami/${mainFilename}" to your package.json scripts`,
-      "5. Run `npm run narukami` to start the agent",
+      `1. Set the required env vars in .factory/.env (see .factory/.env.example)`,
+      "   For Pi auth, run `pi` on the host before starting the sandbox",
+      "2. Read and customize .factory/prompt.md to describe what you want the agent to do",
+      `3. Customize .factory/${mainFilename} — it uses the JS API (\`run()\`) to control how the agent runs`,
+      `4. Add "factory": "npx tsx .factory/${mainFilename}" to your package.json scripts`,
+      "5. Run `npm run factory` to start the agent",
     ];
   } else {
     const hasReviewer = template.includes("review");
     let step = 1;
     const lines: string[] = [
       "Next steps:",
-      `${step++}. Set the required env vars in .narukami/.env (see .narukami/.env.example)`,
-      "   For Codex subscription auth, run `codex login` on the host before starting the sandbox",
-      `${step++}. Add "narukami": "npx tsx .narukami/${mainFilename}" to your package.json scripts`,
+      `${step++}. Set the required env vars in .factory/.env (see .factory/.env.example)`,
+      "   For Pi auth, run `pi` on the host before starting the sandbox",
+      `${step++}. Add "factory": "npx tsx .factory/${mainFilename}" to your package.json scripts`,
       `${step++}. Templates keep \`copyToWorktree\` empty by default so host node_modules are not copied across platforms; the install hook prepares dependencies inside the sandbox`,
-      `${step++}. Read and customize the prompt files in .narukami/ — they shape what the agent does`,
+      `${step++}. Read and customize the prompt files in .factory/ — they shape what the agent does`,
     ];
     if (hasReviewer) {
       lines.push(
-        `${step++}. Customize .narukami/CODING_STANDARDS.md with your project's standards — the reviewer agent loads it during review`,
+        `${step++}. Customize .factory/CODING_STANDARDS.md with your project's standards — the reviewer agent loads it during review`,
       );
     }
-    lines.push(`${step++}. Run \`npm run narukami\` to start the agent`);
+    lines.push(`${step++}. Run \`npm run factory\` to start the agent`);
     return lines;
   }
 }
@@ -689,13 +690,20 @@ const rewriteMainTs = (
       );
     }
 
+    if (agent.name === "pi") {
+      content = content.replace(
+        /\bdocker\(\)/g,
+        'docker({ mounts: [{ hostPath: "~/.pi/agent", sandboxPath: "~/.pi/agent" }] })',
+      );
+    }
+
     yield* fs
       .writeFileString(mainTsPath, content)
       .pipe(Effect.mapError((e) => new Error(e.message)));
   });
 
 /**
- * When the user opted out of the Narukami Shrine label, strip ` --label Narukami Shrine`
+ * When the user opted out of the Agent Factory label, strip ` --label Agent Factory`
  * from all `.md` files in the scaffolded config directory so that `gh issue list`
  * commands work without a label filter.
  */
@@ -715,7 +723,7 @@ const rewritePromptFiles = (
           const content = yield* fs
             .readFileString(filePath)
             .pipe(Effect.mapError((e) => new Error(e.message)));
-          const updated = content.replace(/ --label Narukami Shrine/g, "");
+          const updated = content.replace(/ --label Agent Factory/g, "");
           if (updated !== content) {
             yield* fs
               .writeFileString(filePath, updated)
@@ -945,7 +953,7 @@ const agentFactoryCall = (agent: AgentEntry, model: string): string => {
   const factoryArgs = agent.defaultFactoryOptions
     ? `"${model}", ${agent.defaultFactoryOptions}`
     : `"${model}"`;
-  return `narukami.${agent.factoryImport}(${factoryArgs})`;
+  return `factory.${agent.factoryImport}(${factoryArgs})`;
 };
 
 const rewriteReviewBackend = (
@@ -973,8 +981,8 @@ const rewriteReviewBackend = (
         "const reviewPromptFile: string | undefined = undefined;",
       );
       content = content.replace(
-        /agent: narukami\.codexReview\([\s\S]*?\n\s+\}\),/g,
-        `agent: narukami.codexReview("${model}", {
+        /agent: factory\.codexReview\([\s\S]*?\n\s+\}\),/g,
+        `agent: factory.codexReview("${model}", {
       effort: "low",
       base: reviewBase,
     }),`,
@@ -982,10 +990,10 @@ const rewriteReviewBackend = (
     } else {
       content = content.replace(
         /const reviewPromptFile: string \| undefined = undefined;/,
-        'const reviewPromptFile: string | undefined = "./.narukami/review-prompt.md";',
+        'const reviewPromptFile: string | undefined = "./.factory/review-prompt.md";',
       );
       content = content.replace(
-        /agent: narukami\.codexReview\([\s\S]*?\n\s+\}\),/g,
+        /agent: factory\.codexReview\([\s\S]*?\n\s+\}\),/g,
         `agent: ${agentFactoryCall(agent, model)},`,
       );
     }
@@ -1012,7 +1020,7 @@ export const scaffold = (
       reviewBackend = agent.name === "codex" ? "codex-review" : "prompt",
     } = options;
     const fs = yield* FileSystem.FileSystem;
-    const configDir = join(repoDir, ".narukami");
+    const configDir = join(repoDir, ".factory");
 
     const exists = yield* fs
       .exists(configDir)
@@ -1020,7 +1028,7 @@ export const scaffold = (
     if (exists) {
       yield* Effect.fail(
         new Error(
-          ".narukami/ directory already exists. Remove it first if you want to re-initialize.",
+          ".factory/ directory already exists. Remove it first if you want to re-initialize.",
         ),
       );
     }
@@ -1080,7 +1088,7 @@ export const scaffold = (
     // Replace issue provider template arguments in all text files (must run before label stripping)
     yield* substituteTemplateArgs(configDir, issueProvider);
 
-    // Strip --label Narukami Shrine from prompt files when the user declined label creation
+    // Strip --label Agent Factory from prompt files when the user declined label creation
     if (!createLabel) {
       yield* rewritePromptFiles(configDir);
     }

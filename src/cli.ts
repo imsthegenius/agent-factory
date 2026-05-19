@@ -66,7 +66,7 @@ const defaultUidBuildArgs = (): Record<string, string> => {
 
 // --- Config directory check ---
 
-const CONFIG_DIR = ".narukami";
+const CONFIG_DIR = ".factory";
 
 const requireConfigDir = (
   cwd: string,
@@ -79,7 +79,7 @@ const requireConfigDir = (
     if (!exists) {
       yield* Effect.fail(
         new ConfigDirError({
-          message: "No .narukami/ found. Run `narukami init` first.",
+          message: "No .factory/ found. Run `factory init` first.",
         }),
       );
     }
@@ -108,8 +108,8 @@ const runScaffoldEntrypoint = (
             reject(
               new Error(
                 signal
-                  ? `Narukami entrypoint was terminated by ${signal}.`
-                  : `Narukami entrypoint exited with code ${code ?? "unknown"}.`,
+                  ? `Agent Factory entrypoint was terminated by ${signal}.`
+                  : `Agent Factory entrypoint exited with code ${code ?? "unknown"}.`,
               ),
             );
           }
@@ -153,7 +153,7 @@ const initToolsOption = Options.text("tools").pipe(
 
 const sonarHostUrlOption = Options.text("sonar-host-url").pipe(
   Options.withDescription(
-    "Prefill SONAR_HOST_URL in .narukami/.env.example when using --tools sonar-scanner",
+    "Prefill SONAR_HOST_URL in .factory/.env.example when using --tools sonar-scanner",
   ),
   Options.optional,
 );
@@ -213,14 +213,16 @@ const initCommand = Command.make(
         const selected = yield* Effect.promise(() =>
           clack.select({
             message: "Select an agent:",
-            initialValue: "codex",
+            initialValue: "pi",
             options: agents.map((a) => ({
               value: a.name,
               label: a.label,
               hint:
-                a.name === "codex"
-                  ? `Default model: ${a.defaultModel} / low reasoning; uses ChatGPT subscription auth`
-                  : `Default model: ${a.defaultModel}`,
+                a.name === "pi"
+                  ? `Default model: ${a.defaultModel}; uses host Pi auth`
+                  : a.name === "codex"
+                    ? `Default model: ${a.defaultModel} / low reasoning; uses ChatGPT subscription auth`
+                    : `Default model: ${a.defaultModel}`,
             })),
           }),
         );
@@ -309,7 +311,7 @@ const initCommand = Command.make(
         const entered = yield* Effect.promise(() =>
           clack.text({
             message:
-              "Sonar host URL for .narukami/.env.example (leave blank to fill later):",
+              "Sonar host URL for .factory/.env.example (leave blank to fill later):",
             placeholder: "http://host.docker.internal:9000",
           }),
         );
@@ -390,7 +392,7 @@ const initCommand = Command.make(
                 {
                   value: "prompt",
                   label: "Prompt-based review",
-                  hint: "Uses .narukami/review-prompt.md with the selected agent",
+                  hint: "Uses .factory/review-prompt.md with the selected agent",
                 },
               ],
             }),
@@ -406,13 +408,13 @@ const initCommand = Command.make(
         }
       }
 
-      // Offer to create the "Narukami Shrine" label on the repo (skip for non-GitHub issue providers)
+      // Offer to create the "Agent Factory" label on the repo (skip for non-GitHub issue providers)
       let shouldCreateLabel: boolean | symbol = false;
       if (selectedIssueProvider.name === "github-issues") {
         shouldCreateLabel = yield* Effect.promise(() =>
           clack.confirm({
             message:
-              'Create a "Narukami Shrine" GitHub label? (Templates filter issues by this label)',
+              'Create a "Agent Factory" GitHub label? (Templates filter issues by this label)',
             initialValue: true,
           }),
         );
@@ -421,7 +423,7 @@ const initCommand = Command.make(
           yield* Effect.try({
             try: () =>
               execSync(
-                'gh label create "Narukami Shrine" --description "Issues for Narukami Shrine to work on" --color "F9A825" 2>/dev/null',
+                'gh label create "Agent Factory" --description "Issues for Agent Factory to work on" --color "F9A825" 2>/dev/null',
                 { cwd, stdio: "ignore" },
               ),
             catch: () => undefined,
@@ -430,7 +432,7 @@ const initCommand = Command.make(
       }
 
       const scaffoldResult = yield* d.spinner(
-        "Scaffolding .narukami/ config directory...",
+        "Scaffolding .factory/ config directory...",
         scaffold(cwd, {
           agent: selectedAgent,
           model: selectedModel,
@@ -478,7 +480,7 @@ const initCommand = Command.make(
         yield* d.status("Init complete! Image built successfully.", "success");
       } else {
         yield* d.status(
-          `Init complete! Run \`narukami ${selectedSandboxProvider.cliNamespace} build-image\` to build the ${providerLabel} image later.`,
+          `Init complete! Run \`factory ${selectedSandboxProvider.cliNamespace} build-image\` to build the ${providerLabel} image later.`,
           "success",
         );
       }
@@ -648,7 +650,7 @@ const toolNameOption = Options.text("tool").pipe(
 
 const rebuildOption = Options.boolean("rebuild").pipe(
   Options.withDescription(
-    "Rebuild the detected Docker/Podman image after editing .narukami/",
+    "Rebuild the detected Docker/Podman image after editing .factory/",
   ),
 );
 
@@ -666,7 +668,7 @@ const removeToolCommand = Command.make(
       yield* requireConfigDir(cwd);
 
       const result = yield* d.spinner(
-        `Removing optional sandbox tool '${tool}' from .narukami/...`,
+        `Removing optional sandbox tool '${tool}' from .factory/...`,
         removeSandboxToolFromConfig(cwd, tool).pipe(
           Effect.mapError(
             (e) =>
@@ -678,11 +680,11 @@ const removeToolCommand = Command.make(
       );
 
       if (!result.changed) {
-        yield* d.status(`No '${tool}' blocks found in .narukami/.`, "info");
+        yield* d.status(`No '${tool}' blocks found in .factory/.`, "info");
         return;
       }
 
-      yield* d.status(`Removed '${tool}' from .narukami/.`, "success");
+      yield* d.status(`Removed '${tool}' from .factory/.`, "success");
 
       if (rebuild) {
         const imageName = resolveImageName(imageNameFlag, cwd);
@@ -719,7 +721,7 @@ const toolsCommand = Command.make("tools", {}, () =>
 
 // --- Root command ---
 
-const rootCommand = Command.make("narukami", {}, () =>
+const rootCommand = Command.make("factory", {}, () =>
   Effect.gen(function* () {
     const d = yield* Display;
     const fs = yield* FileSystem.FileSystem;
@@ -731,7 +733,7 @@ const rootCommand = Command.make("narukami", {}, () =>
       .exists(mainTs)
       .pipe(Effect.catchAll(() => Effect.succeed(false)));
     if (hasMainTs) {
-      yield* runScaffoldEntrypoint("./.narukami/main.ts", cwd);
+      yield* runScaffoldEntrypoint("./.factory/main.ts", cwd);
       return;
     }
 
@@ -739,16 +741,16 @@ const rootCommand = Command.make("narukami", {}, () =>
       .exists(mainMts)
       .pipe(Effect.catchAll(() => Effect.succeed(false)));
     if (hasMainMts) {
-      yield* runScaffoldEntrypoint("./.narukami/main.mts", cwd);
+      yield* runScaffoldEntrypoint("./.factory/main.mts", cwd);
       return;
     }
 
-    yield* d.status(`Narukami Shrine v${VERSION}`, "info");
+    yield* d.status(`Agent Factory v${VERSION}`, "info");
     yield* d.status("Use --help to see available commands.", "info");
   }),
 );
 
-export const narukami = rootCommand.pipe(
+export const factory = rootCommand.pipe(
   Command.withSubcommands([
     initCommand,
     dockerCommand,
@@ -757,7 +759,7 @@ export const narukami = rootCommand.pipe(
   ]),
 );
 
-export const cli = Command.run(narukami, {
-  name: "narukami",
+export const cli = Command.run(factory, {
+  name: "factory",
   version: VERSION,
 });

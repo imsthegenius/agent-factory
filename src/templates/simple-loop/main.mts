@@ -1,9 +1,9 @@
-import { run, codex } from "@yae-tools/narukami-shrine";
-import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import { run, codex } from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
 
 // Simple loop: an agent that picks open issues one by one and closes them.
-// Run this with: npx tsx .narukami/main.mts
-// Or add to package.json scripts: "narukami": "npx tsx .narukami/main.mts"
+// Run this with: npx tsx .factory/main.mts
+// Or add to package.json scripts: "factory": "npx tsx .factory/main.mts"
 
 await run({
   // A name for this run, shown as a prefix in log output.
@@ -12,13 +12,13 @@ await run({
   // Sandbox provider — Docker is the default runtime.
   sandbox: docker(),
 
-  // The agent provider. `narukami init` rewrites this placeholder to your
+  // The agent provider. `factory init` rewrites this placeholder to your
   // selected agent and model.
   agent: codex("gpt-5.5", { effort: "low" }),
 
   // Path to the prompt file. Shell expressions inside are evaluated inside the
   // sandbox at the start of each iteration, so the agent always sees fresh data.
-  promptFile: "./.narukami/prompt.md",
+  promptFile: "./.factory/prompt.md",
 
   // Maximum number of iterations (agent invocations) to run in a session.
   // Each iteration works on a single issue. Increase this to process more issues

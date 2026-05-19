@@ -2,7 +2,7 @@
  * Vercel isolated sandbox provider — wraps `@vercel/sandbox` into a SandboxProvider.
  *
  * Usage:
- *   import { vercel } from "narukami/sandboxes/vercel";
+ *   import { vercel } from "factory/sandboxes/vercel";
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: vercel() });
  */
 
@@ -25,7 +25,7 @@ const VERCEL_REPO_PATH = "/vercel/sandbox/workspace";
  * Options for creating a Vercel sandbox provider.
  *
  * All `@vercel/sandbox` `Sandbox.create()` options are accepted as pass-through,
- * plus Narukami Shrine-specific options for auth and branch strategy.
+ * plus Agent Factory-specific options for auth and branch strategy.
  */
 export interface VercelOptions {
   /**
@@ -144,7 +144,7 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
       const timeoutValue = options?.timeout ?? options?.timeoutMs;
       if (timeoutValue !== undefined) createParams.timeout = timeoutValue;
 
-      // Merge provider env with Narukami Shrine env
+      // Merge provider env with Agent Factory env
       createParams.env = createOptions.env;
 
       // Auth: pass token and team/project IDs if provided
@@ -245,12 +245,12 @@ export const vercel = (options?: VercelOptions): IsolatedSandboxProvider =>
           if (info.isDirectory()) {
             const tarPath = join(
               tmpdir(),
-              `narukami-copyin-${Date.now()}.tar.gz`,
+              `factory-copyin-${Date.now()}.tar.gz`,
             );
             execSync(`tar -czf "${tarPath}" -C "${hostPath}" .`);
             try {
               const tarContent = await readFile(tarPath);
-              const sandboxTarPath = `/tmp/narukami-copyin-${Date.now()}.tar.gz`;
+              const sandboxTarPath = `/tmp/factory-copyin-${Date.now()}.tar.gz`;
               await sandbox.writeFiles([
                 { path: sandboxTarPath, content: tarContent },
               ]);

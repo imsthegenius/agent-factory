@@ -1,19 +1,19 @@
 # Adding a backlog manager
 
-This document is for contributors adding support for a new **backlog manager** (e.g. GitHub Issues, Beads, Jira, GitLab) to `narukami init`. It covers:
+This document is for contributors adding support for a new **backlog manager** (e.g. GitHub Issues, Beads, Jira, GitLab) to `factory init`. It covers:
 
 1. [Evaluating a new backlog manager](#evaluating-a-new-backlog-manager) — the questionnaire used to decide whether a backlog manager can be supported.
 2. [The `BacklogManagerEntry` shape](#the-backlogmanagerentry-shape) — what you fill in.
-3. [Scaffold integration](#scaffold-integration) — how the entry plugs into `narukami init`.
+3. [Scaffold integration](#scaffold-integration) — how the entry plugs into `factory init`.
 4. [Implementation checklist](#implementation-checklist) — every file to touch.
 
 For terminology (**backlog manager**, **task**, **template argument**, etc.), see [`CONTEXT.md`](../../CONTEXT.md).
 
 ## What a backlog manager integration actually is
 
-Narukami does not embed any backlog manager itself. A backlog-manager entry is a **scaffold template**: when a user picks it during `narukami init`, we substitute three CLI commands (`LIST_TASKS_COMMAND`, `VIEW_TASK_COMMAND`, `CLOSE_TASK_COMMAND`) into the generated prompt files, and we drop a Dockerfile snippet that installs the relevant CLI into the **sandbox**.
+Agent Factory does not embed any backlog manager itself. A backlog-manager entry is a **scaffold template**: when a user picks it during `factory init`, we substitute three CLI commands (`LIST_TASKS_COMMAND`, `VIEW_TASK_COMMAND`, `CLOSE_TASK_COMMAND`) into the generated prompt files, and we drop a Dockerfile snippet that installs the relevant CLI into the **sandbox**.
 
-The generated project then runs those commands itself — Narukami is not in the loop at runtime.
+The generated project then runs those commands itself — Agent Factory is not in the loop at runtime.
 
 This means the requirements below are about what the **CLI** can do unattended inside a Debian-based container, not about what the backlog manager can do as a product.
 
@@ -43,7 +43,7 @@ Before implementing, confirm the backlog manager satisfies the must-haves below.
 
 ### Scaffold prerequisites
 
-For `narukami init` to offer the backlog manager:
+For `factory init` to offer the backlog manager:
 
 - A Dockerfile snippet that installs the CLI as root (before any `USER` switch in the agent provider's Dockerfile).
 - A token env var to surface in `.env.example`, or an empty string if no auth is required (Beads is the local-only example).

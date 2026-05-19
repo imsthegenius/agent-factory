@@ -29,31 +29,39 @@ vi.mock("node:os", async (importOriginal) => {
 
 describe("defaultImageName", () => {
   it("derives image name from POSIX repo directory", () => {
-    expect(defaultImageName("/home/user/my-repo")).toBe("narukami:my-repo");
+    expect(defaultImageName("/home/user/my-repo")).toBe(
+      "agent-factory:my-repo",
+    );
   });
 
   it("lowercases and sanitizes the directory name", () => {
-    expect(defaultImageName("/home/user/My Repo!")).toBe("narukami:my-repo-");
+    expect(defaultImageName("/home/user/My Repo!")).toBe(
+      "agent-factory:my-repo-",
+    );
   });
 
   it("handles trailing slashes", () => {
-    expect(defaultImageName("/home/user/repo/")).toBe("narukami:repo");
+    expect(defaultImageName("/home/user/repo/")).toBe("agent-factory:repo");
   });
 
   it("falls back to 'local' for empty path", () => {
-    expect(defaultImageName("")).toBe("narukami:local");
+    expect(defaultImageName("")).toBe("agent-factory:local");
   });
 
   it("handles Windows paths with backslashes", () => {
-    expect(defaultImageName("C:\\Users\\project")).toBe("narukami:project");
+    expect(defaultImageName("C:\\Users\\project")).toBe(
+      "agent-factory:project",
+    );
   });
 
   it("handles Windows paths with trailing backslash", () => {
-    expect(defaultImageName("C:\\Users\\project\\")).toBe("narukami:project");
+    expect(defaultImageName("C:\\Users\\project\\")).toBe(
+      "agent-factory:project",
+    );
   });
 
   it("handles mixed separators", () => {
-    expect(defaultImageName("C:\\Users/project")).toBe("narukami:project");
+    expect(defaultImageName("C:\\Users/project")).toBe("agent-factory:project");
   });
 });
 
@@ -405,8 +413,8 @@ describe("patchGitMountsForWindows", () => {
       expect(result).toEqual(mounts);
     });
 
-    it("remaps parent .git dir and adds overlay mount for Narukami Shrine-created worktree", async () => {
-      // Scenario B: Narukami Shrine created a worktree. resolveGitMounts returned
+    it("remaps parent .git dir and adds overlay mount for Agent Factory-created worktree", async () => {
+      // Scenario B: Agent Factory created a worktree. resolveGitMounts returned
       // one mount for the parent .git directory. The worktree's .git file
       // points into it.
       const mounts = [

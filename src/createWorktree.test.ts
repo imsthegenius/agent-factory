@@ -53,7 +53,7 @@ describe("createWorktree", () => {
     });
 
     try {
-      expect(ws.worktreePath).toContain(".narukami/worktrees");
+      expect(ws.worktreePath).toContain(".factory/worktrees");
       expect(ws.branch).toBe("test-branch");
       expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
@@ -73,8 +73,8 @@ describe("createWorktree", () => {
     });
 
     try {
-      expect(ws.worktreePath).toContain(".narukami/worktrees");
-      expect(ws.branch).toMatch(/^narukami\//);
+      expect(ws.worktreePath).toContain(".factory/worktrees");
+      expect(ws.branch).toMatch(/^factory\//);
       expect(existsSync(ws.worktreePath)).toBe(true);
     } finally {
       await ws.close();

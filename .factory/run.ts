@@ -1,18 +1,21 @@
-import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import * as factory from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
 
 const MAX_ITERATIONS = 10;
 const MAX_PARALLEL = 4;
+
+const sandboxProvider = () =>
+  docker({ mounts: [{ hostPath: "~/.pi/agent", sandboxPath: "~/.pi/agent" }] });
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
   // Phase 1: Plan — orchestrator agent analyzes issues and picks parallelizable work
-  const plan = await sandcastle.run({
-    sandbox: docker(),
+  const plan = await factory.run({
+    sandbox: sandboxProvider(),
     name: "Planner",
-    agent: sandcastle.claudeCode("claude-opus-4-6"),
-    promptFile: "./.sandcastle/plan-prompt.md",
+    agent: factory.pi("openai-codex/gpt-5.5"),
+    promptFile: "./.factory/plan-prompt.md",
   });
 
   const planMatch = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
@@ -58,8 +61,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     issues.map(async (issue) => {
       await acquire();
       try {
-        await using sandbox = await sandcastle.createSandbox({
-          sandbox: docker(),
+        await using sandbox = await factory.createSandbox({
+          sandbox: sandboxProvider(),
           branch: issue.branch,
           copyToWorkspace: ["node_modules"],
           hooks: {
@@ -71,8 +74,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
         const result = await sandbox.run({
           name: "Implementer #" + issue.number,
-          agent: sandcastle.claudeCode("claude-opus-4-6"),
-          promptFile: "./.sandcastle/implement-prompt.md",
+          agent: factory.pi("openai-codex/gpt-5.5"),
+          promptFile: "./.factory/implement-prompt.md",
           promptArgs: {
             TASK_ID: String(issue.number),
             ISSUE_TITLE: issue.title,
@@ -83,8 +86,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         if (result.commits.length > 0) {
           await sandbox.run({
             name: "Reviewer #" + issue.number,
-            agent: sandcastle.claudeCode("claude-opus-4-6"),
-            promptFile: "./.sandcastle/review-prompt.md",
+            agent: factory.pi("openai-codex/gpt-5.5"),
+            promptFile: "./.factory/review-prompt.md",
             promptArgs: {
               TASK_ID: String(issue.number),
               ISSUE_TITLE: issue.title,
@@ -115,7 +118,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         entry,
       ): entry is {
         outcome: PromiseFulfilledResult<
-          Awaited<ReturnType<typeof sandcastle.run>>
+          Awaited<ReturnType<typeof factory.run>>
         >;
         issue: (typeof issues)[number];
       } =>
@@ -139,12 +142,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 
   // Phase 3: Merge — one agent merges all branches together
-  await sandcastle.run({
-    sandbox: docker(),
+  await factory.run({
+    sandbox: sandboxProvider(),
     name: "Merger",
     maxIterations: 10,
-    agent: sandcastle.claudeCode("claude-opus-4-6"),
-    promptFile: "./.sandcastle/merge-prompt.md",
+    agent: factory.pi("openai-codex/gpt-5.5"),
+    promptFile: "./.factory/merge-prompt.md",
     promptArgs: {
       BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),
       ISSUES: completedIssues

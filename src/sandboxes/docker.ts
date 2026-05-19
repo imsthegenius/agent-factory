@@ -2,7 +2,7 @@
  * Docker sandbox provider — wraps DockerLifecycle into a SandboxProvider.
  *
  * Usage:
- *   import { docker } from "narukami/sandboxes/docker";
+ *   import { docker } from "factory/sandboxes/docker";
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: docker() });
  */
 
@@ -114,7 +114,7 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
     create: async (
       createOptions: BindMountCreateOptions,
     ): Promise<BindMountSandboxHandle> => {
-      const containerName = `narukami-${randomUUID()}`;
+      const containerName = `factory-${randomUUID()}`;
 
       const worktreePath =
         createOptions.mounts.find(
@@ -358,7 +358,7 @@ const checkImageUid = (imageName: string, expectedUid: number): Promise<void> =>
         if (error) {
           reject(
             new Error(
-              `Image '${imageName}' not found locally. Build it first with 'narukami docker build-image'.`,
+              `Image '${imageName}' not found locally. Build it first with 'factory docker build-image'.`,
             ),
           );
           return;
@@ -381,7 +381,7 @@ const checkImageUid = (imageName: string, expectedUid: number): Promise<void> =>
             new Error(
               `UID mismatch: image '${imageName}' was built with UID ${imageUid}, ` +
                 `but the expected UID is ${expectedUid}. ` +
-                `Rebuild the image with 'narukami docker build-image', ` +
+                `Rebuild the image with 'factory docker build-image', ` +
                 `or pass containerUid: ${imageUid} to docker() to match the image.`,
             ),
           );

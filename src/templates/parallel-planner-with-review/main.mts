@@ -17,12 +17,12 @@
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .narukami/main.mts
+//   npx tsx .factory/main.mts
 // Or add to package.json:
-//   "scripts": { "narukami": "npx tsx .narukami/main.mts" }
+//   "scripts": { "factory": "npx tsx .factory/main.mts" }
 
-import * as narukami from "@yae-tools/narukami-shrine";
-import { docker } from "@yae-tools/narukami-shrine/sandboxes/docker";
+import * as factory from "@imsthegenius/agent-factory";
+import { docker } from "@imsthegenius/agent-factory/sandboxes/docker";
 import { execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ const hooks = {
 const copyToWorktree: string[] = [];
 
 // Codex review has built-in review instructions, so no prompt is needed by
-// default. Set this to "./.narukami/review-prompt.md" to add custom review
+// default. Set this to "./.factory/review-prompt.md" to add custom review
 // instructions, or when using a general agent provider for review.
 const reviewPromptFile: string | undefined = undefined;
 
@@ -96,7 +96,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   //
   // It outputs a <plan> JSON block — we parse that to drive Phase 2.
   // -------------------------------------------------------------------------
-  const plan = await narukami.run({
+  const plan = await factory.run({
     hooks,
     sandbox: docker(),
     name: "planner",
@@ -104,8 +104,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // not write code.
     maxIterations: 1,
     // The scaffold rewrites this placeholder to your selected planning agent.
-    agent: narukami.codex("gpt-5.5", { effort: "low" }),
-    promptFile: "./.narukami/plan-prompt.md",
+    agent: factory.codex("gpt-5.5", { effort: "low" }),
+    promptFile: "./.factory/plan-prompt.md",
   });
 
   // Extract the <plan>…</plan> block from the agent's stdout.
@@ -146,7 +146,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
   const settled = await Promise.allSettled(
     issues.map(async (issue) => {
-      const sandbox = await narukami.createSandbox({
+      const sandbox = await factory.createSandbox({
         branch: issue.branch,
         sandbox: docker(),
         hooks,
@@ -158,8 +158,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const implement = await sandbox.run({
           name: "implementer",
           maxIterations: 100,
-          agent: narukami.codex("gpt-5.5", { effort: "low" }),
-          promptFile: "./.narukami/implement-prompt.md",
+          agent: factory.codex("gpt-5.5", { effort: "low" }),
+          promptFile: "./.factory/implement-prompt.md",
           promptArgs: {
             TASK_ID: issue.id,
             ISSUE_TITLE: issue.title,
@@ -169,7 +169,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
         // Only review if the implementer produced commits
         if (implement.commits.length > 0) {
-          const repairAgent = narukami.codex("gpt-5.5", { effort: "low" });
+          const repairAgent = factory.codex("gpt-5.5", { effort: "low" });
           let repairResumeSession =
             repairAgent.name === "codex"
               ? implement.iterations.at(-1)?.sessionId
@@ -178,7 +178,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           let review = await sandbox.run({
             name: "reviewer",
             maxIterations: 1,
-            agent: narukami.codexReview("gpt-5.5", {
+            agent: factory.codexReview("gpt-5.5", {
               effort: "low",
               base: reviewBase,
             }),
@@ -235,7 +235,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             review = await sandbox.run({
               name: "reviewer",
               maxIterations: 1,
-              agent: narukami.codexReview("gpt-5.5", {
+              agent: factory.codexReview("gpt-5.5", {
                 effort: "low",
                 base: reviewBase,
               }),
@@ -320,13 +320,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
-  await narukami.run({
+  await factory.run({
     hooks,
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
-    agent: narukami.codex("gpt-5.5", { effort: "low" }),
-    promptFile: "./.narukami/merge-prompt.md",
+    agent: factory.codex("gpt-5.5", { effort: "low" }),
+    promptFile: "./.factory/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b) => `- ${b}`).join("\n"),

@@ -27,11 +27,11 @@ const dockerExec = (args: string[]): Effect.Effect<string, DockerError> =>
   });
 
 /**
- * Build the narukami Docker image.
+ * Build the factory Docker image.
  *
  * When `dockerfile` is provided, uses `docker build -f <dockerfile> <cwd>`
  * so COPY instructions resolve relative to the current working directory.
- * Otherwise, uses `docker build <dockerfileDir>` (the default .narukami/ directory).
+ * Otherwise, uses `docker build <dockerfileDir>` (the default .factory/ directory).
  */
 export const buildImage = (
   imageName: string,

@@ -178,7 +178,7 @@ export const buildContextWindowLines = (
     .map((it) => `Context window: ${formatContextWindowSize(it.usage)}`);
 
 /**
- * Controls where Narukami Shrine writes iteration progress and agent output.
+ * Controls where Agent Factory writes iteration progress and agent output.
  * Use `"file"` (log-to-file mode) to write to a log file on disk, or
  * `"stdout"` (terminal mode) to render an interactive UI in the terminal.
  */
@@ -207,12 +207,12 @@ export interface Timeouts {
 export interface RunOptions {
   /** Agent provider to use (e.g. codex("gpt-5.5", { effort: "low" })) */
   readonly agent: AgentProvider;
-  /** Sandbox provider (e.g. docker({ imageName: "narukami:myrepo" })). */
+  /** Sandbox provider (e.g. docker({ imageName: "agent-factory:myrepo" })). */
   readonly sandbox: SandboxProvider;
   /**
    * Host repo directory. Replaces `process.cwd()` as the anchor for
-   * `.narukami/worktrees/`, `.narukami/.env`, `.narukami/logs/`,
-   * `.narukami/patches/`, and git operations.
+   * `.factory/worktrees/`, `.factory/.env`, `.factory/logs/`,
+   * `.factory/patches/`, and git operations.
    *
    * - Relative paths are resolved against `process.cwd()`.
    * - Absolute paths are used as-is.
@@ -235,7 +235,7 @@ export interface RunOptions {
   readonly hooks?: SandboxHooks;
   /** Key-value map for {{KEY}} placeholder substitution in prompts */
   readonly promptArgs?: PromptArgs;
-  /** Logging mode (default: { type: 'file' } with auto-generated path under .narukami/logs/) */
+  /** Logging mode (default: { type: 'file' } with auto-generated path under .factory/logs/) */
   readonly logging?: LoggingOption;
   /** Substring(s) the agent emits to stop the iteration loop early. Matched via `includes` against agent output. (default: `"<promise>COMPLETE</promise>"`) */
   readonly completionSignal?: string | string[];
@@ -258,7 +258,7 @@ export interface RunOptions {
    * - Aborting mid-iteration kills the in-flight agent subprocess.
    * - Phase boundaries (between iterations) also check the signal.
    * - The rejected promise surfaces `signal.reason` via
-   *   `signal.throwIfAborted()` — no Narukami Shrine-specific wrapping.
+   *   `signal.throwIfAborted()` — no Agent Factory-specific wrapping.
    * - The worktree is preserved on disk after abort (error-path behavior).
    */
   readonly signal?: AbortSignal;
@@ -445,7 +445,7 @@ export async function run(
     type: "file",
     path: join(
       hostRepoDir,
-      ".narukami",
+      ".factory",
       "logs",
       buildLogFilename(resolvedBranch, targetBranch, options.name),
     ),
@@ -499,7 +499,7 @@ export async function run(
 
   const baseEffect = Effect.gen(function* () {
     const d = yield* Display;
-    yield* d.intro(options.name ?? "narukami");
+    yield* d.intro(options.name ?? "factory");
     const rows = buildRunSummaryRows({
       name: options.name,
       agentName,
@@ -507,7 +507,7 @@ export async function run(
       maxIterations,
       branch: resolvedBranch,
     });
-    yield* d.summary("Narukami Shrine Run", rows);
+    yield* d.summary("Agent Factory Run", rows);
 
     const userArgs = options.promptArgs ?? {};
 

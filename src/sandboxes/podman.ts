@@ -2,7 +2,7 @@
  * Podman sandbox provider — creates Podman containers with bind-mounts.
  *
  * Usage:
- *   import { podman } from "narukami/sandboxes/podman";
+ *   import { podman } from "factory/sandboxes/podman";
  *   await run({ agent: claudeCode("claude-opus-4-6"), sandbox: podman() });
  */
 
@@ -128,7 +128,7 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
     create: async (
       createOptions: BindMountCreateOptions,
     ): Promise<BindMountSandboxHandle> => {
-      const containerName = `narukami-${randomUUID()}`;
+      const containerName = `factory-${randomUUID()}`;
 
       const worktreePath =
         createOptions.mounts.find(
