@@ -1,0 +1,4 @@
+{
+  "name": "Agent Factory",
+  "install": "npm ci"
+}
